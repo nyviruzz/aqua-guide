@@ -1,41 +1,43 @@
 # Aqua Guide Implementation
 
-This repo now contains the functional MVP for the chosen `second-round-claude-hybrid-03` direction.
+This repo now contains the functional MVP for the chosen `second-round-claude-hybrid-03` direction, reframed around global water-access and water-safety communication.
 
 ## What is implemented
 
 - A live, presentation-first web app with the selected hybrid visual language
-- Search-driven scenario switching across four demo locations
-- Three risk states: `Safe`, `Caution`, and `Advisory`
+- Search-driven scenario switching across four global demo regions
+- Two high-stakes risk states: `Caution` and `Advisory`
 - `Quick Read` mode for simpler guidance
 - Saved locations using browser local storage
 - Contextual AI-style Q&A for demo conversations
+- Multilingual response selection for `English`, `French`, `Swahili`, `Arabic`, and `Bengali`
+- Server-side OpenAI chat route that becomes live when `OPENAI_API_KEY` is configured
 - Action cards with expandable next-step details
 - Geolocation shortcut to the nearest demo scenario
 - Copyable summary for easy sharing during the demo
 
 ## What is intentionally lightweight
 
-- No production backend
-- No real-time water authority integration
+- No production database
+- No live official alert ingestion
 - No required user accounts
-- No mandatory database for the MVP
 
 This is deliberate. The build is optimized for a strong hackathon demo rather than operational infrastructure.
 
 ## Sponsor positioning
 
-- `AWS`: the assistant layer is framed as something that can be powered by `AWS Bedrock or similar`, while the polished web experience can credibly sit on AWS hosting and mapping services in a future iteration.
+- `AWS`: the assistant layer can still be pitched as something that could be powered by `AWS Bedrock or similar` in a fuller sponsor-aligned version.
 - `MongoDB`: not required for the chosen track, but the product can naturally grow into saved household histories, alert preferences, and location records if that angle comes up in discussion.
 
 ## Demo architecture
 
 - Static frontend: `index.html`, `styles.css`, `app.js`
 - Scenario data: `data/locations.js`
-- Local development and hosting: `server.mjs`
+- Local development, hosting, and AI proxy: `server.mjs`
 - Validation: `scripts/test-functional.mjs`
 - Presentation screenshots: `scripts/capture-presentation.mjs`
 - Render service config: `render.yaml`
+- OpenAI environment template: `.env.example`
 
 ## Validation status
 
@@ -44,4 +46,4 @@ This is deliberate. The build is optimized for a strong hackathon demo rather th
 
 ## Deployment note
 
-Render deployment is prepared but not completed from this machine because Render requires a remote Git repository URL. The current local repo has no working authenticated remote configured, so the next step is to push this project to GitHub, GitLab, or Bitbucket and then create the Render service from that URL.
+Render deployment is prepared from the public GitHub repo. The remaining deployment blocker from this machine is the local Render/Claude execution path, not the app structure itself.

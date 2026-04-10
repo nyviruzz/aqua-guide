@@ -45,21 +45,21 @@ try {
   const browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({
     viewport: { width: 1440, height: 1200 },
-    geolocation: { latitude: 25.7907, longitude: -80.13 },
+    geolocation: { latitude: -19.8333, longitude: 34.85 },
     permissions: ["geolocation", "clipboard-read", "clipboard-write"]
   });
   const page = await context.newPage();
 
   await page.goto(baseUrl, { waitUntil: "networkidle" });
-  await page.screenshot({ path: path.join(outputDir, "01-home-safe.png"), fullPage: false });
+  await page.screenshot({ path: path.join(outputDir, "01-home-global.png"), fullPage: false });
 
-  await page.fill("#searchInput", "Suffolk County, NY");
+  await page.fill("#searchInput", "Turkana County, Kenya");
   await page.click(".search-btn");
   await page.waitForFunction(() => {
     const badge = document.querySelector("#statusBadge span");
-    return badge && badge.textContent?.includes("Caution");
+    return badge && badge.textContent?.includes("Advisory");
   });
-  await page.screenshot({ path: path.join(outputDir, "02-search-caution.png"), fullPage: false });
+  await page.screenshot({ path: path.join(outputDir, "02-search-advisory.png"), fullPage: false });
 
   await page.click("#quickReadToggle");
   await page.waitForFunction(() => document.body.classList.contains("quick-read"));
@@ -68,13 +68,19 @@ try {
   await page.click("#saveLocationButton");
   await page.screenshot({ path: path.join(outputDir, "04-saved-location.png"), fullPage: false });
 
-  await page.fill("#aiInput", "What should I do for baby formula?");
+  await page.click("[data-language='fr']");
+  await page.fill("#aiInput", "What is the first step in an advisory?");
   await page.click("#aiSendButton");
   await page.waitForFunction(() => {
     const message = document.querySelector(".message.assistant:last-child");
-    return message && message.textContent?.includes("boiled or bottled water");
+    const text = message?.textContent ?? "";
+    return (
+      message &&
+      !text.includes("Thinking through the safest plain-language response for this household...") &&
+      !text.includes("Je prépare une réponse claire et sûre pour ce foyer...")
+    );
   });
-  await page.screenshot({ path: path.join(outputDir, "05-ai-answer.png"), fullPage: false });
+  await page.screenshot({ path: path.join(outputDir, "05-ai-french.png"), fullPage: false });
 
   await page.click("[data-action-id='boil']");
   await page.waitForSelector("#modalTitle");
@@ -84,9 +90,9 @@ try {
   await page.click("#useLocationButton");
   await page.waitForFunction(() => {
     const node = document.querySelector("#statusLocation");
-    return node && node.textContent?.includes("Miami Beach, FL");
+    return node && node.textContent?.includes("Beira, Mozambique");
   });
-  await page.screenshot({ path: path.join(outputDir, "07-geo-advisory.png"), fullPage: false });
+  await page.screenshot({ path: path.join(outputDir, "07-geo-beira.png"), fullPage: false });
 
   await browser.close();
 } finally {

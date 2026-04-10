@@ -44,6 +44,7 @@ const dom = {
   aiConversation: document.getElementById("aiConversation"),
   aiInput: document.getElementById("aiInput"),
   aiSendButton: document.getElementById("aiSendButton"),
+  assistantLanguageButtons: document.getElementById("assistantLanguageButtons"),
   assistantContext: document.getElementById("assistantContext"),
   searchForm: document.getElementById("searchForm"),
   searchInput: document.getElementById("searchInput"),
@@ -66,11 +67,62 @@ const dom = {
 
 const favoriteStorageKey = "aqua-guide-favorites";
 const quickReadStorageKey = "aqua-guide-quick-read";
+const assistantLanguageStorageKey = "aqua-guide-assistant-language";
+
+const languageCatalog = {
+  en: {
+    label: "English",
+    inputPlaceholder: "Ask about safe water, treatment, storage, or translation...",
+    contextPrefix: "Grounded in the ",
+    readyMessage: "Ask Aqua is ready. It can explain this scenario in plain language or restate it for another audience.",
+    note: "Live GPT mode activates automatically when OPENAI_API_KEY is configured.",
+    thinking: "Thinking through the safest plain-language response for this household...",
+    thinkingMeta: "Preparing multilingual guidance"
+  },
+  fr: {
+    label: "French",
+    inputPlaceholder: "Posez une question sur l'eau, la sécurité ou la traduction...",
+    contextPrefix: "Basé sur le scénario ",
+    readyMessage: "Aqua est prêt. Il peut expliquer la situation simplement ou la reformuler pour un autre public.",
+    note: "Le mode GPT en direct s'active automatiquement quand OPENAI_API_KEY est configuré.",
+    thinking: "Je prépare une réponse claire et sûre pour ce foyer...",
+    thinkingMeta: "Préparation d'une réponse multilingue"
+  },
+  sw: {
+    label: "Swahili",
+    inputPlaceholder: "Uliza kuhusu maji salama, matibabu, hifadhi, au tafsiri...",
+    contextPrefix: "Imejengwa juu ya ",
+    readyMessage: "Aqua iko tayari. Inaweza kueleza hali hii kwa lugha rahisi au kuitafsiri kwa hadhira nyingine.",
+    note: "Mwonekano wa GPT huwashwa moja kwa moja OPENAI_API_KEY ikisanidiwa.",
+    thinking: "Ninaandaa jibu salama na rahisi kuelewa kwa kaya hii...",
+    thinkingMeta: "Inaandaa mwongozo wa lugha nyingi"
+  },
+  ar: {
+    label: "Arabic",
+    inputPlaceholder: "اسأل عن سلامة المياه أو المعالجة أو التخزين أو الترجمة...",
+    contextPrefix: "يعتمد على سيناريو ",
+    readyMessage: "أكوا جاهز. يمكنه شرح الحالة بلغة بسيطة أو إعادة صياغتها لجمهور آخر.",
+    note: "يعمل وضع GPT المباشر تلقائيا عند إعداد OPENAI_API_KEY.",
+    thinking: "أقوم بإعداد استجابة واضحة وآمنة لهذه الأسرة...",
+    thinkingMeta: "جارٍ إعداد إرشاد متعدد اللغات"
+  },
+  bn: {
+    label: "Bengali",
+    inputPlaceholder: "নিরাপদ পানি, চিকিৎসা, সংরক্ষণ, বা অনুবাদ সম্পর্কে জিজ্ঞেস করুন...",
+    contextPrefix: "এই নির্দেশনা তৈরি করা হয়েছে ",
+    readyMessage: "Aqua প্রস্তুত। এটি সহজ ভাষায় ব্যাখ্যা করতে পারে বা অন্য ভাষায় আবার বলতে পারে।",
+    note: "OPENAI_API_KEY সেট করা হলে লাইভ GPT মোড স্বয়ংক্রিয়ভাবে চালু হবে।",
+    thinking: "এই পরিবারের জন্য সবচেয়ে নিরাপদ সহজ উত্তর প্রস্তুত করা হচ্ছে...",
+    thinkingMeta: "বহুভাষিক নির্দেশনা প্রস্তুত হচ্ছে"
+  }
+};
 
 const state = {
-  currentLocationId: "stony-brook",
+  currentLocationId: "coxs-bazar-bangladesh",
   favorites: loadFavorites(),
   quickRead: loadQuickRead(),
+  assistantLanguage: loadAssistantLanguage(),
+  aiPending: false,
   conversation: []
 };
 
@@ -112,9 +164,15 @@ function loadQuickRead() {
   return localStorage.getItem(quickReadStorageKey) === "true";
 }
 
+function loadAssistantLanguage() {
+  const stored = localStorage.getItem(assistantLanguageStorageKey);
+  return stored && languageCatalog[stored] ? stored : "en";
+}
+
 function persistState() {
   localStorage.setItem(favoriteStorageKey, JSON.stringify(state.favorites));
   localStorage.setItem(quickReadStorageKey, String(state.quickRead));
+  localStorage.setItem(assistantLanguageStorageKey, state.assistantLanguage);
 }
 
 function getLocationById(id) {
@@ -159,6 +217,7 @@ function render() {
   renderSaveButton();
   dom.body.classList.toggle("quick-read", state.quickRead);
   dom.quickReadToggle.setAttribute("aria-pressed", String(state.quickRead));
+  renderAssistantLanguageButtons();
 }
 
 function renderLocationOptions() {
@@ -247,7 +306,10 @@ function renderActions(location) {
 }
 
 function renderAssistant(location) {
-  dom.assistantContext.textContent = `Answers grounded in the ${location.recordLabel.toLowerCase()}`;
+  const language = languageCatalog[state.assistantLanguage] ?? languageCatalog.en;
+  dom.assistantContext.textContent = `${language.contextPrefix}${location.recordLabel.toLowerCase()}`;
+  dom.aiInput.placeholder = language.inputPlaceholder;
+  dom.aiSendButton.disabled = state.aiPending;
   dom.aiSuggestions.innerHTML = location.aiSuggestions
     .map(
       (question) =>
@@ -258,8 +320,8 @@ function renderAssistant(location) {
   if (!state.conversation.length) {
     dom.aiConversation.innerHTML = `
       <div class="message assistant">
-        Ask Aqua is ready. Try a suggested question or search a different location to show how the guidance adapts.
-        <small>Pitch note: this can be powered by AWS Bedrock or similar in a fuller build.</small>
+        ${escapeHtml(language.readyMessage)}
+        <small>${escapeHtml(language.note)}</small>
       </div>
     `;
     return;
@@ -275,6 +337,16 @@ function renderAssistant(location) {
       `
     )
     .join("");
+}
+
+function renderAssistantLanguageButtons() {
+  const buttons = dom.assistantLanguageButtons.querySelectorAll("[data-language]");
+  buttons.forEach((button) => {
+    if (!(button instanceof HTMLButtonElement)) return;
+    const isActive = button.dataset.language === state.assistantLanguage;
+    button.classList.toggle("is-active", isActive);
+    button.setAttribute("aria-pressed", String(isActive));
+  });
 }
 
 function renderPitchPoints(location) {
@@ -320,8 +392,34 @@ function toggleFavorite(id) {
 }
 
 function buildAssistantAnswer(location, question) {
+  const language = state.assistantLanguage;
   const normalized = question.toLowerCase();
-  const intro = `${location.name} is currently marked ${location.statusLabel.toLowerCase()} in this demo scenario. `;
+  const statusMap = {
+    en: { caution: "caution", advisory: "advisory", safe: "safe" },
+    fr: { caution: "alerte moderee", advisory: "alerte elevee", safe: "stable" },
+    sw: { caution: "tahadhari", advisory: "hatari kubwa", safe: "salama" },
+    ar: { caution: "حالة تحذير", advisory: "حالة طوارئ", safe: "حالة مستقرة" },
+    bn: { caution: "সতর্কতা", advisory: "উচ্চ ঝুঁকি", safe: "নিরাপদ" }
+  };
+  const localizedStatus = (statusMap[language] ?? statusMap.en)[location.status];
+
+  if (language === "fr") {
+    return `${location.name} est actuellement dans un état ${localizedStatus} dans cette démo. La priorité est d'utiliser de l'eau traitée ou embouteillée pour boire, cuisiner, les médicaments et les nourrissons. Gardez l'eau sûre séparée de l'eau non traitée et suivez les consignes locales de santé ou d'aide humanitaire pour les prochaines étapes.`;
+  }
+
+  if (language === "sw") {
+    return `${location.name} kwa sasa iko katika hali ya ${localizedStatus} kwenye onyesho hili. Kipaumbele ni kutumia maji yaliyotibiwa au ya chupa kwa kunywa, kupika, dawa, na watoto wachanga. Tenganisha maji salama na maji ambayo hayajatibiwa, na fuata maelekezo ya afya ya eneo au ya wahudumu wa misaada kwa hatua zinazofuata.`;
+  }
+
+  if (language === "ar") {
+    return `${location.name} حاليا في ${localizedStatus} ضمن هذا العرض التجريبي. الأولوية هي استخدام مياه معالجة أو معبأة للشرب والطهي والأدوية ورعاية الأطفال. احفظ الماء الآمن منفصلا عن الماء غير المعالج واتبع إرشادات الصحة المحلية أو الجهات الإنسانية للخطوات التالية.`;
+  }
+
+  if (language === "bn") {
+    return `${location.name} বর্তমানে এই ডেমোতে ${localizedStatus} অবস্থায় রয়েছে। প্রথম অগ্রাধিকার হলো পান করা, রান্না, ওষুধ এবং শিশুর জন্য শুধু পরিশোধিত বা বোতলজাত পানি ব্যবহার করা। নিরাপদ পানি আলাদা রাখুন এবং পরবর্তী পদক্ষেপের জন্য স্থানীয় স্বাস্থ্য বা মানবিক সহায়তার নির্দেশনা অনুসরণ করুন।`;
+  }
+
+  const intro = `${location.name} is currently marked ${localizedStatus} in this demo scenario. `;
 
   if (normalized.includes("newborn") || normalized.includes("baby") || normalized.includes("formula")) {
     return location.status === "safe"
@@ -358,22 +456,53 @@ function buildAssistantAnswer(location, question) {
   return `${intro}Aqua Guide would answer this by combining the current status, the timestamp, and the household context into one plain-language recommendation. In this MVP, the safest next step is: ${location.actions[0].description}`;
 }
 
-function askAssistant(question) {
+async function askAssistant(question) {
   const trimmed = question.trim();
-  if (!trimmed) return;
+  if (!trimmed || state.aiPending) return;
   const location = getLocationById(state.currentLocationId);
+  const language = languageCatalog[state.assistantLanguage] ?? languageCatalog.en;
+  state.aiPending = true;
   state.conversation.push({ role: "user", content: trimmed });
+  state.conversation.push({
+    role: "assistant",
+    content: language.thinking,
+    meta: language.thinkingMeta
+  });
   renderAssistant(location);
   dom.aiInput.value = "";
 
-  window.setTimeout(() => {
-    state.conversation.push({
+  try {
+    const response = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        question: trimmed,
+        language: state.assistantLanguage,
+        location,
+        conversation: state.conversation.slice(-6)
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`Assistant request failed with ${response.status}`);
+    }
+
+    const payload = await response.json();
+    state.conversation[state.conversation.length - 1] = {
+      role: "assistant",
+      content: payload.text ?? buildAssistantAnswer(location, trimmed),
+      meta: payload.meta ?? `GPT response · ${location.recordLabel}`
+    };
+  } catch {
+    state.conversation[state.conversation.length - 1] = {
       role: "assistant",
       content: buildAssistantAnswer(location, trimmed),
-      meta: `Demo answer · ${location.recordLabel}`
-    });
+      meta: `Local fallback · ${location.recordLabel}`
+    };
+  } finally {
+    state.aiPending = false;
     renderAssistant(location);
-  }, 420);
+  }
 }
 
 function openActionModal(action) {
@@ -524,6 +653,16 @@ dom.aiSuggestions.addEventListener("click", (event) => {
   const button = event.target.closest("[data-suggestion]");
   if (!button) return;
   askAssistant(button.dataset.suggestion);
+});
+
+dom.assistantLanguageButtons.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-language]");
+  if (!(button instanceof HTMLButtonElement)) return;
+  state.assistantLanguage = button.dataset.language;
+  persistState();
+  renderAssistantLanguageButtons();
+  renderAssistant(getLocationById(state.currentLocationId));
+  showToast(`Assistant language set to ${languageCatalog[state.assistantLanguage].label}`);
 });
 
 dom.aiSendButton.addEventListener("click", () => askAssistant(dom.aiInput.value));

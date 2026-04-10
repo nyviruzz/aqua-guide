@@ -23,7 +23,7 @@
           </div>
           <div>
             <span class="logo-text">Aqua Guide</span>
-            <p class="logo-subtext">Demo prototype for Code-A-Site 2026</p>
+            <p class="logo-subtext">Global water safety demo for Code-A-Site 2026</p>
           </div>
         </div>
         <div class="nav-right">
@@ -114,7 +114,7 @@
 
       <div class="search-meta">
         <p class="demo-note">
-          Prototype note: Aqua Guide is using curated demo records for the hackathon MVP, not live regulatory feeds.
+          Prototype note: Aqua Guide uses curated global demo scenarios inspired by documented WASH challenges, not live local alerts.
         </p>
         <div id="toast" class="toast" role="status" aria-live="polite"></div>
       </div>
@@ -157,11 +157,21 @@
 
       <section id="assistant" class="assistant-layout">
         <div class="ai-section">
-          <div class="section-label">Ask Aqua</div>
-          <div class="assistant-heading-row">
-            <h2 class="section-title">AI water assistant</h2>
-            <span class="assistant-badge">Bedrock-ready pitch</span>
+        <div class="section-label">Ask Aqua</div>
+        <div class="assistant-heading-row">
+          <h2 class="section-title">AI water assistant</h2>
+          <div class="assistant-controls">
+            <span class="assistant-language-label">Response language</span>
+            <div id="assistantLanguageButtons" class="assistant-language-buttons" aria-label="Choose assistant response language">
+              <button type="button" class="assistant-language-button" data-language="en">English</button>
+              <button type="button" class="assistant-language-button" data-language="fr">French</button>
+              <button type="button" class="assistant-language-button" data-language="sw">Swahili</button>
+              <button type="button" class="assistant-language-button" data-language="ar">Arabic</button>
+              <button type="button" class="assistant-language-button" data-language="bn">Bengali</button>
+            </div>
+            <span class="assistant-badge">GPT-4.1 ready</span>
           </div>
+        </div>
           <div class="ai-panel">
             <div class="ai-header">
               <div class="ai-avatar">
@@ -227,7 +237,7 @@
     </div>
 
     <footer class="footer">
-      Aqua Guide is a hackathon MVP focused on design clarity and plain-language guidance. Demo data only.
+      Aqua Guide is a hackathon MVP focused on global water safety, multilingual clarity, and plain-language guidance. Demo data only.
     </footer>
 
     <script type="module" src="./app.js"></script>

@@ -1,38 +1,40 @@
 # Aqua Guide
 
-Aqua Guide is a presentation-first web app for Code-A-Site 2026. It turns technical water-quality records into plain-language household guidance that judges can understand immediately.
+Aqua Guide is a presentation-first web app for Code-A-Site 2026. It reframes water safety as a global access, treatment, and communication problem, then turns complex WASH-style updates into plain-language household guidance that judges can understand immediately.
 
 ## Why this concept fits the hackathon
 
-- The problem is broad and instantly recognizable: people want to know whether their water is safe and what to do next.
+- The problem is broad and globally relevant: many communities still need clearer guidance around safe drinking water, treatment, storage, and crisis communication.
 - The demo is easy to follow in under two minutes.
 - The build balances design quality with believable functionality, which matches the event's focus on `Technical Complexity` and `Design`.
-- The AI assistant is framed honestly as a layer that can be powered by `AWS Bedrock or similar`, which supports the sponsor story without pretending a production model pipeline already exists.
+- The multilingual AI assistant creates a strong angle for both the AI judge and the web-dev judge without turning the project into a backend-heavy build.
 
 ## Functional MVP
 
-- Search a demo city, county, or ZIP code and update the full experience in place.
-- Switch between safe, caution, and advisory scenarios.
+- Search a demo region and update the full experience in place.
+- Switch between caution and advisory scenarios inspired by documented global water-stress conditions.
 - Save locations locally for repeat checks during the presentation.
 - Enable `Quick Read` mode for simpler, larger-copy guidance.
 - Ask Aqua a question and get a contextual plain-language answer.
+- Change the assistant response language across `English`, `French`, `Swahili`, `Arabic`, and `Bengali`.
+- Use a server-side OpenAI integration when `OPENAI_API_KEY` is configured, with a local guarded fallback when it is not.
 - Open household action cards for concrete next steps.
 - Use browser geolocation to jump to the nearest demo scenario.
 - Copy the current plain-language summary for sharing.
 
 ## Demo Scenario Set
 
-- `Stony Brook, NY` for a reassuring everyday-safe story.
-- `Suffolk County, NY` for the main caution-state presentation flow.
-- `Brooklyn, NY` for the renter and old-plumbing context story.
-- `Miami Beach, FL` for the higher-stakes advisory story.
+- `Cox's Bazar, Bangladesh`
+- `Turkana County, Kenya`
+- `Beira, Mozambique`
+- `Port-au-Prince, Haiti`
 
-All records in this MVP are clearly marked as demo data for the hackathon prototype.
+All records in this MVP are clearly marked as demo scenarios for the hackathon prototype, inspired by documented WASH and water-safety challenges rather than live official alerts.
 
 ## Stack
 
 - static HTML, CSS, and client-side JavaScript
-- lightweight Node static server for local development and Render hosting
+- lightweight Node server for local development, Render hosting, and the OpenAI chat endpoint
 - Playwright for automated functional validation and presentation screenshots
 
 ## Run locally
@@ -43,6 +45,13 @@ npm start
 ```
 
 Then open `http://127.0.0.1:4173`.
+
+To enable live GPT responses, copy `.env.example` to `.env` and set:
+
+```bash
+OPENAI_API_KEY=your_key_here
+OPENAI_MODEL=gpt-4.1
+```
 
 ## Validate locally
 
@@ -68,6 +77,7 @@ The screenshot capture scripts default to `~/Documents/Github/my-notes` on the c
 
 - `index.html`, `styles.css`, `app.js`: the live app
 - `data/locations.js`: demo scenario dataset
+- `.env.example`: environment template for OpenAI
 - `scripts/test-functional.mjs`: interaction test coverage
 - `scripts/capture-presentation.mjs`: screenshots for the 2-minute demo script
 - `render.yaml`: Render deployment config
