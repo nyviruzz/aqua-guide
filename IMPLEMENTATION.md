@@ -1,49 +1,80 @@
 # Aqua Guide Implementation
 
-This repo now contains the functional MVP for the chosen `second-round-claude-hybrid-03` direction, reframed around global water-access and water-safety communication.
+## Current architecture
 
-## What is implemented
+The app is now structured as a real multi-page product instead of a single long landing page.
 
-- A live, presentation-first web app with the selected hybrid visual language
-- Search-driven scenario switching across four global demo regions
-- Two high-stakes risk states: `Caution` and `Advisory`
-- `Quick Read` mode for simpler guidance
-- Saved locations using browser local storage
-- Contextual AI-style Q&A for demo conversations
-- Multilingual response selection for `English`, `French`, `Swahili`, `Arabic`, and `Bengali`
-- Server-side OpenAI chat route that becomes live when `OPENAI_API_KEY` is configured
-- Action cards with expandable next-step details
-- Geolocation shortcut to the nearest demo scenario
-- Copyable summary for easy sharing during the demo
+- `index.html`
+  - Editorial homepage
+  - Priority region spotlight
+  - Region search
+  - Region cards
+  - Assistant teaser
+- `region/index.html`
+  - Region-specific guidance
+  - Live context cards
+  - Action modal flow
+  - Copy/share interaction
+  - Geolocation shortcut
+- `assistant/index.html`
+  - Multilingual chat
+  - Selected-region context
+  - Suggestion chips
+  - Safe fallback path when no model key is configured
+- `resources/index.html`
+  - Household guidance patterns
+  - Field-team communication guidance
+  - Translation-focused guidance
 
-## What is intentionally lightweight
+## Server responsibilities
 
-- No production database
-- No live official alert ingestion
-- No required user accounts
+`server.mjs` now handles:
 
-This is deliberate. The build is optimized for a strong hackathon demo rather than operational infrastructure.
+- static file serving
+- security headers and CSP
+- OpenAI chat proxying
+- live geocoding and reverse geocoding
+- live World Bank indicator fetching
+- live weather fetching
+- response caching for public APIs
+- simple per-IP rate limiting for the chat route
+
+## What is live versus curated
+
+Live:
+
+- country-level water access indicators
+- country-level sanitation indicators
+- country-level population
+- current weather context
+- search and reverse geocoding
+- assistant responses when `OPENAI_API_KEY` is configured
+
+Curated:
+
+- region-level household summaries
+- action cards and safety steps
+- region prioritization and quality scoring
+- region-specific assistant suggestion chips
+
+That split is intentional. A usable product needs real public signals, but it also needs stable household guidance that does not disappear when a third-party feed changes.
 
 ## Sponsor positioning
 
-- `AWS`: the assistant layer can still be pitched as something that could be powered by `AWS Bedrock or similar` in a fuller sponsor-aligned version.
-- `MongoDB`: not required for the chosen track, but the product can naturally grow into saved household histories, alert preferences, and location records if that angle comes up in discussion.
-
-## Demo architecture
-
-- Static frontend: `index.html`, `styles.css`, `app.js`
-- Scenario data: `data/locations.js`
-- Local development, hosting, and AI proxy: `server.mjs`
-- Validation: `scripts/test-functional.mjs`
-- Presentation screenshots: `scripts/capture-presentation.mjs`
-- Render service config: `render.yaml`
-- OpenAI environment template: `.env.example`
+- `AWS`
+  - The assistant layer can still be presented as something that can be powered by `AWS Bedrock or similar`, while the current implementation uses an OpenAI-compatible path for speed.
+- `MongoDB`
+  - Not required for the chosen track, but the product can naturally grow into saved household histories, outreach logs, and regional alert subscriptions if that angle comes up.
 
 ## Validation status
 
 - `npm run test:functional` passes
 - `npm run screenshots:presentation` passes
 
-## Deployment note
+## Security notes
 
-Render deployment is prepared from the public GitHub repo. The remaining deployment blocker from this machine is the local Render/Claude execution path, not the app structure itself.
+- `.env` stays gitignored
+- secrets are not committed
+- chat responses are escaped in the UI
+- the chat route is rate-limited
+- CSP and related hardening headers are applied on every response

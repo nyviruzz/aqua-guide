@@ -1,28 +1,32 @@
 # Aqua Guide Presentation Plan
 
-This repo ships with a ready demo flow and screenshot set for a 2-minute hackathon video or live presentation, now centered on global water-stress scenarios and a multilingual assistant.
+This repo includes a judge-friendly two-minute flow and a fresh screenshot set for the current multi-page build.
 
-## Recommended flow
+## Recommended sequence
 
-1. Start on the default global homepage for `Cox's Bazar, Bangladesh`.
-2. Search `Turkana County, Kenya` to show the advisory-state update.
-3. Toggle `Quick Read` to demonstrate accessibility and clarity.
-4. Save the location to show repeat-use value.
-5. Switch the assistant to `French` and ask a practical household question.
-6. Open the primary action card for a concrete next step.
-7. Use the location shortcut to jump to `Beira, Mozambique`.
+1. Start on the homepage.
+2. Search `Turkana County, Kenya`.
+3. Show the live context cards and household summary.
+4. Open the primary action card.
+5. Copy the summary to show shareability.
+6. Open the assistant page and switch to `French`.
+7. Ask a practical household question.
+8. Jump back to the region page and use geolocation to move to `Beira, Mozambique`.
+9. End on the resources page to show depth beyond a single screen.
 
-## Talking points
+## What this demonstrates
 
-- Broad problem: families and communities need clear water guidance, not dense emergency language.
-- Strong UX: the product stays calm, readable, and actionable.
-- Strong AI story: the assistant can run with live GPT responses once `OPENAI_API_KEY` is configured, while still demonstrating multilingual value in the MVP.
-- Presentation fit: every major interaction is visible in seconds.
+- broad global relevance
+- a strong design system
+- modular web-product structure
+- practical household guidance
+- multilingual AI support
+- believable live-data integration
 
-## Demo assets
+## Screenshot output
 
-The presentation screenshots are generated into the Obsidian vault under:
+Current screenshots are generated into:
 
 - `Hackathon/Aqua Guide/artifacts/presentation demo/`
 
-Use the companion Obsidian note for the full timestamped script and presenter split.
+Use the companion Obsidian note for the full speaking script, screen order, and presenter split.

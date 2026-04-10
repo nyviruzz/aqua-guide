@@ -40,7 +40,7 @@ const server = spawn("node", ["server.mjs"], {
 
 try {
   await mkdir(outputDir, { recursive: true });
-  await waitForServer(baseUrl);
+  await waitForServer(`${baseUrl}/healthz`);
 
   const browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({
@@ -51,48 +51,37 @@ try {
   const page = await context.newPage();
 
   await page.goto(baseUrl, { waitUntil: "networkidle" });
-  await page.screenshot({ path: path.join(outputDir, "01-home-global.png"), fullPage: false });
+  await page.screenshot({ path: path.join(outputDir, "01-home-overview.png"), fullPage: false });
 
-  await page.fill("#searchInput", "Turkana County, Kenya");
-  await page.click(".search-btn");
-  await page.waitForFunction(() => {
-    const badge = document.querySelector("#statusBadge span");
-    return badge && badge.textContent?.includes("Advisory");
-  });
-  await page.screenshot({ path: path.join(outputDir, "02-search-advisory.png"), fullPage: false });
+  await page.fill("#regionSearchInput", "Turkana County, Kenya");
+  await page.click("#regionSearchForm .primary-button");
+  await page.waitForFunction(() => document.querySelector("h1")?.textContent?.includes("Turkana County, Kenya"));
+  await page.screenshot({ path: path.join(outputDir, "02-region-turkana.png"), fullPage: false });
 
-  await page.click("#quickReadToggle");
-  await page.waitForFunction(() => document.body.classList.contains("quick-read"));
-  await page.screenshot({ path: path.join(outputDir, "03-quick-read.png"), fullPage: false });
-
-  await page.click("#saveLocationButton");
-  await page.screenshot({ path: path.join(outputDir, "04-saved-location.png"), fullPage: false });
-
-  await page.click("[data-language='fr']");
-  await page.fill("#aiInput", "What is the first step in an advisory?");
-  await page.click("#aiSendButton");
-  await page.waitForFunction(() => {
-    const message = document.querySelector(".message.assistant:last-child");
-    const text = message?.textContent ?? "";
-    return (
-      message &&
-      !text.includes("Thinking through the safest plain-language response for this household...") &&
-      !text.includes("Je prépare une réponse claire et sûre pour ce foyer...")
-    );
-  });
-  await page.screenshot({ path: path.join(outputDir, "05-ai-french.png"), fullPage: false });
-
-  await page.click("[data-action-id='boil']");
+  await page.click("[data-action-id='treat']");
   await page.waitForSelector("#modalTitle");
-  await page.screenshot({ path: path.join(outputDir, "06-action-modal.png"), fullPage: false });
+  await page.screenshot({ path: path.join(outputDir, "03-region-action-modal.png"), fullPage: false });
   await page.click("#closeModalButton");
 
-  await page.click("#useLocationButton");
+  await page.goto(`${baseUrl}/assistant/?region=turkana-kenya`, { waitUntil: "networkidle" });
+  await page.click("[data-language='fr']");
+  await page.fill("#assistantInput", "What is the first step in an advisory?");
+  await page.click("#assistantSendButton");
   await page.waitForFunction(() => {
-    const node = document.querySelector("#statusLocation");
-    return node && node.textContent?.includes("Beira, Mozambique");
+    const lastMessage = document.querySelector(".message.assistant:last-child .message-bubble");
+    const text = lastMessage?.textContent ?? "";
+    return Boolean(lastMessage) && !text.includes("Working through the safest possible answer for this region...");
   });
-  await page.screenshot({ path: path.join(outputDir, "07-geo-beira.png"), fullPage: false });
+  await page.screenshot({ path: path.join(outputDir, "04-assistant-french.png"), fullPage: false });
+
+  await page.goto(`${baseUrl}/resources/`, { waitUntil: "networkidle" });
+  await page.click("[data-group='field']");
+  await page.screenshot({ path: path.join(outputDir, "05-resources-field.png"), fullPage: false });
+
+  await page.goto(`${baseUrl}/region/?id=turkana-kenya`, { waitUntil: "networkidle" });
+  await page.click("#useLocationButton");
+  await page.waitForFunction(() => document.querySelector("h1")?.textContent?.includes("Beira, Mozambique"));
+  await page.screenshot({ path: path.join(outputDir, "06-region-geolocation.png"), fullPage: false });
 
   await browser.close();
 } finally {

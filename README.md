@@ -1,43 +1,33 @@
 # Aqua Guide
 
-Aqua Guide is a presentation-first web app for Code-A-Site 2026. It reframes water safety as a global access, treatment, and communication problem, then turns complex WASH-style updates into plain-language household guidance that judges can understand immediately.
+Aqua Guide is a multi-page web application for water guidance in regions facing scarcity, flooding, service interruption, and fragile infrastructure. It combines a curated household guidance layer with live public signals, then turns that into plain-language actions that families, volunteers, and field teams can actually use.
 
-## Why this concept fits the hackathon
+## Product snapshot
 
-- The problem is broad and globally relevant: many communities still need clearer guidance around safe drinking water, treatment, storage, and crisis communication.
-- The demo is easy to follow in under two minutes.
-- The build balances design quality with believable functionality, which matches the event's focus on `Technical Complexity` and `Design`.
-- The multilingual AI assistant creates a strong angle for both the AI judge and the web-dev judge without turning the project into a backend-heavy build.
+- Four tracked region profiles:
+  - `Cox's Bazar, Bangladesh`
+  - `Turkana County, Kenya`
+  - `Beira, Mozambique`
+  - `Port-au-Prince, Haiti`
+- Separate product pages for:
+  - home
+  - region guidance
+  - multilingual AI assistant
+  - resources
+- Live country indicators from the World Bank
+- Live weather context from Open-Meteo
+- Geocoding and reverse geocoding via OpenStreetMap Nominatim
+- Multilingual AI chat through a server-side OpenAI route with a safe fallback when no key is configured
+- Local persistence for saved regions, quick-read mode, and last-viewed region
 
-## Functional MVP
+## Why this product works
 
-- Search a demo region and update the full experience in place.
-- Switch between caution and advisory scenarios inspired by documented global water-stress conditions.
-- Save locations locally for repeat checks during the presentation.
-- Enable `Quick Read` mode for simpler, larger-copy guidance.
-- Ask Aqua a question and get a contextual plain-language answer.
-- Change the assistant response language across `English`, `French`, `Swahili`, `Arabic`, and `Bengali`.
-- Use a server-side OpenAI integration when `OPENAI_API_KEY` is configured, with a local guarded fallback when it is not.
-- Open household action cards for concrete next steps.
-- Use browser geolocation to jump to the nearest demo scenario.
-- Copy the current plain-language summary for sharing.
+- The problem is globally legible in seconds.
+- The UI stays calm and premium even when the subject matter is serious.
+- The assistant and shareable summary make the app feel operational rather than purely informational.
+- The architecture is lightweight enough for a hackathon build, but structured like a real web product.
 
-## Demo Scenario Set
-
-- `Cox's Bazar, Bangladesh`
-- `Turkana County, Kenya`
-- `Beira, Mozambique`
-- `Port-au-Prince, Haiti`
-
-All records in this MVP are clearly marked as demo scenarios for the hackathon prototype, inspired by documented WASH and water-safety challenges rather than live official alerts.
-
-## Stack
-
-- static HTML, CSS, and client-side JavaScript
-- lightweight Node server for local development, Render hosting, and the OpenAI chat endpoint
-- Playwright for automated functional validation and presentation screenshots
-
-## Run locally
+## Local development
 
 ```bash
 npm install
@@ -46,39 +36,58 @@ npm start
 
 Then open `http://127.0.0.1:4173`.
 
-To enable live GPT responses, copy `.env.example` to `.env` and set:
+To enable live OpenAI responses, copy `.env.example` to `.env` and set:
 
 ```bash
 OPENAI_API_KEY=your_key_here
 OPENAI_MODEL=gpt-4.1
 ```
 
-## Validate locally
+`.env` is ignored by git.
 
-Run the automated interaction checks:
+## Validation
+
+Run the automated browser flow:
 
 ```bash
 npm run test:functional
 ```
 
-Generate the presentation screenshots used in Obsidian:
+Generate the current presentation screenshots:
 
 ```bash
 npm run screenshots:presentation
 ```
 
-The screenshot capture scripts default to `~/Documents/Github/my-notes` on the current machine. Set `OBSIDIAN_VAULT` if your vault lives somewhere else.
+If your Obsidian vault is not under `~/Documents/Github/my-notes`, set `OBSIDIAN_VAULT` before running the screenshot command.
 
-## Deployment
+## Stack
 
-`render.yaml` is included for Render. Render itself requires a remote Git repository URL, so the current local folder cannot be deployed until the repo is pushed to GitHub, GitLab, or Bitbucket and linked from there.
+- Static HTML, CSS, and browser JavaScript for the frontend
+- A lightweight Node server for hosting, API proxying, caching, and security headers
+- Playwright for functional validation and screenshot capture
 
-## Repo layout
+## Project structure
 
-- `index.html`, `styles.css`, `app.js`: the live app
-- `data/locations.js`: demo scenario dataset
-- `.env.example`: environment template for OpenAI
-- `scripts/test-functional.mjs`: interaction test coverage
-- `scripts/capture-presentation.mjs`: screenshots for the 2-minute demo script
+- `index.html`: homepage shell
+- `region/index.html`: region detail page
+- `assistant/index.html`: assistant page
+- `resources/index.html`: resource page
+- `client/`: page controllers and shared browser utilities
+- `data/regions.js`: tracked region dataset
+- `server.mjs`: static hosting plus API endpoints
+- `scripts/test-functional.mjs`: end-to-end validation
+- `scripts/capture-presentation.mjs`: screenshot capture
+- `.env.example`: local environment template
 - `render.yaml`: Render deployment config
-- `external-mockups/`: design exploration history
+
+## External data
+
+- World Bank indicators:
+  - basic drinking water access
+  - basic sanitation access
+  - population
+- Open-Meteo current conditions
+- OpenStreetMap Nominatim geocoding
+
+The tracked regions still use curated household guidance copy on top of those public signals, because a practical water-guidance product needs both live context and human-readable operational advice.
