@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Aqua Guide</title>
+    <meta
+      name="description"
+      content="Aqua Guide turns complex water-quality records into plain-language household guidance."
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body data-status="safe">
+    <section class="hero">
+      <div class="hero-glow"></div>
+      <div class="hero-glow-2"></div>
+      <nav class="nav">
+        <div class="logo">
+          <div class="logo-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z" />
+            </svg>
+          </div>
+          <div>
+            <span class="logo-text">Aqua Guide</span>
+            <p class="logo-subtext">Demo prototype for Code-A-Site 2026</p>
+          </div>
+        </div>
+        <div class="nav-right">
+          <ul class="nav-links">
+            <li><a href="#summary">Summary</a></li>
+            <li><a href="#actions">Actions</a></li>
+            <li><a href="#assistant">Assistant</a></li>
+            <li><a href="#sources">Sources</a></li>
+          </ul>
+          <button id="quickReadToggle" class="quick-read-toggle" type="button" aria-pressed="false">
+            Quick Read
+          </button>
+        </div>
+      </nav>
+
+      <div class="hero-content">
+        <div class="hero-left">
+          <div class="hero-kicker">
+            <span class="hero-kicker-dot"></span>
+            Demo Mode
+          </div>
+          <h1 id="heroTitle">Know your water.<br /><span>Protect your home.</span></h1>
+          <p id="heroDescription"></p>
+        </div>
+
+        <aside class="status-card">
+          <div class="status-header">
+            <span>Current Status</span>
+            <div id="statusBadge" class="status-badge">
+              <div class="status-dot"></div>
+              <span>Safe</span>
+            </div>
+          </div>
+          <div class="status-location">
+            <h2 id="statusLocation"></h2>
+            <p id="statusUtility"></p>
+          </div>
+          <div class="status-metric">
+            <div class="status-metric-label">Overall Quality Index</div>
+            <div class="status-metric-value"><span id="qualityIndex">92</span><small>/ 100</small></div>
+          </div>
+          <div class="status-details">
+            <div class="status-detail">
+              <span class="status-detail-label">Lead (ppb)</span>
+              <span id="metricLead" class="status-detail-value"></span>
+            </div>
+            <div class="status-detail">
+              <span class="status-detail-label">Chlorine (ppm)</span>
+              <span id="metricChlorine" class="status-detail-value"></span>
+            </div>
+            <div class="status-detail">
+              <span class="status-detail-label">pH Level</span>
+              <span id="metricPh" class="status-detail-value"></span>
+            </div>
+            <div class="status-detail">
+              <span class="status-detail-label">Last Updated</span>
+              <span id="metricUpdated" class="status-detail-value"></span>
+            </div>
+          </div>
+          <div class="status-card-actions">
+            <button id="saveLocationButton" class="secondary-button" type="button">Save location</button>
+            <button id="copySummaryButton" class="ghost-button" type="button">Copy summary</button>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <div class="search-section">
+      <form id="searchForm" class="search-bar">
+        <div class="search-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="11" cy="11" r="8" />
+            <path d="M21 21l-4.35-4.35" />
+          </svg>
+        </div>
+        <input
+          id="searchInput"
+          type="text"
+          list="demoLocations"
+          autocomplete="off"
+          placeholder="Enter a demo city, county, or ZIP code"
+          aria-label="Search a demo location"
+        />
+        <datalist id="demoLocations"></datalist>
+        <button class="search-btn" type="submit">Check Water</button>
+        <button id="useLocationButton" class="geo-btn" type="button">Use My Location</button>
+      </form>
+
+      <div class="search-meta">
+        <p class="demo-note">
+          Prototype note: Aqua Guide is using curated demo records for the hackathon MVP, not live regulatory feeds.
+        </p>
+        <div id="toast" class="toast" role="status" aria-live="polite"></div>
+      </div>
+
+      <section class="chip-section">
+        <div>
+          <p class="chip-section-label">Try demo locations</p>
+          <div id="demoLocationChips" class="chip-row"></div>
+        </div>
+        <div>
+          <p class="chip-section-label">Saved locations</p>
+          <div id="savedLocationChips" class="chip-row"></div>
+        </div>
+      </section>
+    </div>
+
+    <main class="main">
+      <section id="summary" class="summary-section">
+        <div class="section-label">Your Water Summary</div>
+        <h2 id="summaryTitle" class="section-title"></h2>
+        <div class="summary-card">
+          <p id="summaryText" class="summary-text"></p>
+          <div id="summaryHighlights" class="summary-highlights"></div>
+        </div>
+      </section>
+
+      <section id="sources" class="trust-section">
+        <div class="section-label">Data Sources</div>
+        <div id="trustRow" class="trust-row"></div>
+      </section>
+
+      <section id="actions" class="actions-section">
+        <div class="section-label">Household Actions</div>
+        <div class="section-heading-row">
+          <h2 id="actionsTitle" class="section-title"></h2>
+          <p id="actionsSubtitle" class="section-meta"></p>
+        </div>
+        <div id="actionsGrid" class="actions-grid"></div>
+      </section>
+
+      <section id="assistant" class="assistant-layout">
+        <div class="ai-section">
+          <div class="section-label">Ask Aqua</div>
+          <div class="assistant-heading-row">
+            <h2 class="section-title">AI water assistant</h2>
+            <span class="assistant-badge">Bedrock-ready pitch</span>
+          </div>
+          <div class="ai-panel">
+            <div class="ai-header">
+              <div class="ai-avatar">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z" />
+                </svg>
+              </div>
+              <div class="ai-header-text">
+                <h3>Ask Aqua</h3>
+                <p id="assistantContext"></p>
+              </div>
+            </div>
+            <div class="ai-body">
+              <div id="aiSuggestions" class="ai-suggestions"></div>
+              <div class="ai-input-row">
+                <input
+                  id="aiInput"
+                  class="ai-input"
+                  type="text"
+                  placeholder="Ask anything about your water..."
+                  aria-label="Ask Aqua a question"
+                />
+                <button id="aiSendButton" class="ai-send" type="button" aria-label="Send question">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <line x1="22" y1="2" x2="11" y2="13" />
+                    <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                  </svg>
+                </button>
+              </div>
+              <div id="aiConversation" class="ai-conversation" aria-live="polite"></div>
+            </div>
+          </div>
+        </div>
+
+        <aside class="side-panel">
+          <div class="side-card">
+            <p class="side-card-label">Demo value</p>
+            <h3>Why this plays well in a hackathon pitch</h3>
+            <ul id="pitchPoints" class="pitch-points"></ul>
+          </div>
+          <div class="side-card">
+            <p class="side-card-label">Accessibility</p>
+            <h3>Quick Read Mode</h3>
+            <p>
+              This mode simplifies language and increases readability for presentations, families, and users who need faster comprehension.
+            </p>
+          </div>
+        </aside>
+      </section>
+    </main>
+
+    <div id="actionModal" class="modal" hidden>
+      <div class="modal-backdrop" data-close-modal="true"></div>
+      <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+        <button id="closeModalButton" class="modal-close" type="button" aria-label="Close action details">
+          ×
+        </button>
+        <p id="modalEyebrow" class="modal-eyebrow"></p>
+        <h2 id="modalTitle" class="modal-title"></h2>
+        <p id="modalDescription" class="modal-description"></p>
+        <ol id="modalSteps" class="modal-steps"></ol>
+      </div>
+    </div>
+
+    <footer class="footer">
+      Aqua Guide is a hackathon MVP focused on design clarity and plain-language guidance. Demo data only.
+    </footer>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

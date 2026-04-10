@@ -1,0 +1,15 @@
+{
+  "name": "aqua-guide",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs",
+    "screenshots": "node scripts/capture-screenshots.mjs",
+    "test:functional": "node scripts/test-functional.mjs",
+    "screenshots:presentation": "node scripts/capture-presentation.mjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.59.1"
+  }
+}
