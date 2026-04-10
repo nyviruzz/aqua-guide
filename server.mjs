@@ -27,8 +27,19 @@ const types = {
 };
 
 const rateLimits = new Map();
-const staticRoots = new Set(["assistant", "client", "data", "map", "region", "resources", "vendor"]);
+const staticRoots = new Set(["assistant", "client", "data", "map", "region", "resources", "ui-variants", "vendor"]);
 const staticFiles = new Set(["index.html", "styles.css"]);
+const directoryDefaultFiles = new Map([
+  ["assistant", "assistant.html"],
+  ["map", "map.html"],
+  ["region", "region.html"],
+  ["resources", "resources.html"],
+  ["ui-variants/variant-1", "variant-1.html"],
+  ["ui-variants/variant-2", "variant-2.html"],
+  ["ui-variants/variant-3", "variant-3.html"],
+  ["ui-variants/variant-4", "variant-4.html"],
+  ["ui-variants/variant-5", "variant-5.html"]
+]);
 
 function parseDotEnv(contents) {
   const result = {};
@@ -395,7 +406,15 @@ const server = http.createServer(async (req, res) => {
 
   let filePath = join(root, safePath);
   if (existsSync(filePath) && statSync(filePath).isDirectory()) {
-    filePath = join(filePath, "index.html");
+    const directoryPath = relativePath.replace(/[\\/]+$/, "").replaceAll("\\", "/");
+    const defaultFileName = directoryDefaultFiles.get(directoryPath);
+    if (!defaultFileName) {
+      res.statusCode = 404;
+      res.setHeader("Content-Type", "text/plain; charset=utf-8");
+      res.end("Not found");
+      return;
+    }
+    filePath = join(filePath, defaultFileName);
   }
 
   if (!existsSync(filePath)) {

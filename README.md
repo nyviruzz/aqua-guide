@@ -81,10 +81,10 @@ If your Obsidian vault is not under `~/Documents/Github/my-notes`, set `OBSIDIAN
 ## Project structure
 
 - `index.html`: homepage shell
-- `region/index.html`: region detail page
-- `map/index.html`: interactive world risk map
-- `assistant/index.html`: assistant page
-- `resources/index.html`: resource page
+- `region/region.html`: region detail page
+- `map/map.html`: interactive world risk map
+- `assistant/assistant.html`: assistant page
+- `resources/resources.html`: resource page
 - `client/`: page controllers and shared browser utilities
 - `data/regions.js`: featured launch profiles and search helpers
 - `data/country-water-index.js`: generated country-level water risk dataset

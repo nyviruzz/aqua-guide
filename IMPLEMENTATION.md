@@ -11,23 +11,23 @@ The app is now structured as a real multi-page product instead of a single long 
   - Region cards
   - Global map entry point
   - Assistant teaser
-- `map/index.html`
+- `map/map.html`
   - Interactive world map
   - Clickable country severity layer
   - Country drawer with guidance and assistant handoff
   - Fast search handoff for city and country guidance
-- `region/index.html`
+- `region/region.html`
   - Region-specific guidance
   - Live context cards
   - Action modal flow
   - Copy/share interaction
   - Geolocation shortcut
-- `assistant/index.html`
+- `assistant/assistant.html`
   - Multilingual chat
   - Selected-region context
   - Suggestion chips
   - Safe fallback path when no model key is configured
-- `resources/index.html`
+- `resources/resources.html`
   - Household guidance patterns
   - Field-team communication guidance
   - Translation-focused guidance
