@@ -1,7 +1,22 @@
 services:
+  - type: static_site
+    name: aqua-guide-static
+    env: static
+    buildCommand: echo ready
+    staticPublishPath: ./
+    pullRequestPreviewsEnabled: false
+
   - type: web
-    name: aqua-guide
-    runtime: node
+    name: aqua-guide-chat
+    env: node
     plan: free
     buildCommand: npm install
     startCommand: npm start
+    healthCheckPath: /healthz
+    envVars:
+      - key: OPENAI_MODEL
+        value: gpt-4.1
+      - key: ALLOWED_ORIGINS
+        value: https://aqua-guide-static.onrender.com,http://localhost:4173,http://127.0.0.1:4173
+      - key: OPENAI_API_KEY
+        sync: false

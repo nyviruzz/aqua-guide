@@ -22,7 +22,7 @@ Aqua Guide is a multi-page web application for water guidance in places facing s
 - Reverse geocoding via BigDataCloud
 - Country metadata via REST Countries
 - Multilingual AI chat through a server-side OpenAI route with a safe fallback when no key is configured
-- Local persistence for saved places, quick-read mode, and last-viewed location
+- Local persistence for saved places and last-viewed location
 
 ## Why this product works
 
@@ -75,7 +75,7 @@ If your Obsidian vault is not under `~/Documents/Github/my-notes`, set `OBSIDIAN
 
 - Static HTML, CSS, and browser JavaScript for the frontend
 - Client-side public API calls for place search, live context, and country metadata
-- A lightweight Node server for hosting, security headers, health checks, and the OpenAI-backed assistant route
+- A lightweight Node server for the OpenAI-backed assistant route, CORS allowlisting, security headers, and health checks
 - Playwright for functional validation and screenshot capture
 
 ## Project structure
@@ -88,10 +88,10 @@ If your Obsidian vault is not under `~/Documents/Github/my-notes`, set `OBSIDIAN
 - `client/`: page controllers and shared browser utilities
 - `data/regions.js`: featured launch profiles and search helpers
 - `data/country-water-index.js`: generated country-level water risk dataset
-- `data/world-countries.geo.json`: local world geometry for the map
+- `data/world-countries.topo.json`: compact world topology for the map
 - `client/location-service.js`: public API orchestration for place search and live context
 - `client/map.js`: map page controller
-- `server.mjs`: static hosting plus assistant and health endpoints
+- `server.mjs`: assistant backend and local server entrypoint
 - `scripts/build-country-water-index.mjs`: dataset generation for the map
 - `scripts/test-functional.mjs`: end-to-end validation
 - `scripts/test-live-smoke.mjs`: live upstream smoke check

@@ -1,13 +1,15 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const dataDir = resolve(root, "data");
+const worldAtlasPath = resolve(root, "node_modules", "world-atlas", "countries-110m.json");
+const currentYear = new Date().getUTCFullYear();
 
 const COUNTRY_URL =
-  "https://restcountries.com/v3.1/all?fields=name,cca2,cca3,flag,latlng,region,subregion,population,capital";
-const GEOJSON_URL = "https://raw.githubusercontent.com/datasets/geo-countries/master/data/countries.geojson";
+  "https://restcountries.com/v3.1/all?fields=name,cca2,cca3,ccn3,flag,latlng,region,subregion,population,capital";
+
 const indicatorIds = {
   drinkingWater: "SH.H2O.BASW.ZS",
   sanitation: "SH.STA.BASS.ZS",
@@ -29,6 +31,17 @@ function formatPercent(value) {
   return Number.isFinite(value) ? `${Math.round(value)}%` : "";
 }
 
+function normalizeName(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replaceAll("&", "and")
+    .replaceAll("st.", "saint")
+    .replaceAll("u.s.", "united states")
+    .replace(/[()'.]/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
 async function fetchJson(url) {
   const response = await fetch(url, {
     headers: {
@@ -41,27 +54,46 @@ async function fetchJson(url) {
   return response.json();
 }
 
-function pickLatestValues(series) {
-  const latestByIso3 = new Map();
-  const rows = Array.isArray(series?.[1]) ? series[1] : [];
+function parseSeriesRows(series) {
+  return (Array.isArray(series?.[1]) ? series[1] : [])
+    .map((row) => ({
+      iso3: String(row?.countryiso3code || "").trim().toUpperCase(),
+      value: Number(row?.value),
+      year: Number(row?.date)
+    }))
+    .filter((row) => row.iso3.length === 3 && Number.isFinite(row.value) && Number.isFinite(row.year))
+    .sort((left, right) => right.year - left.year);
+}
+
+function pickBestIndicatorPoint(rows, options = {}) {
+  const { min = -Infinity, max = Infinity, preferPositive = false } = options;
+  const plausible = rows.filter((row) => row.year <= currentYear && row.value >= min && row.value <= max);
+  if (!plausible.length) return null;
+
+  if (preferPositive) {
+    const positive = plausible.find((row) => row.value > 0);
+    if (positive) return positive;
+  }
+
+  return plausible[0];
+}
+
+async function fetchWorldBankIndicator(indicatorId, options = {}) {
+  const payload = await fetchJson(`https://api.worldbank.org/v2/country/all/indicator/${indicatorId}?format=json&per_page=20000`);
+  const rows = parseSeriesRows(payload);
+  const byIso3 = new Map();
 
   for (const row of rows) {
-    const iso3 = String(row?.countryiso3code || "").trim().toUpperCase();
-    if (!iso3 || iso3.length !== 3 || !Number.isFinite(Number(row?.value))) continue;
-    if (!latestByIso3.has(iso3)) {
-      latestByIso3.set(iso3, {
-        value: Number(row.value),
-        year: Number(row.date)
-      });
+    if (byIso3.has(row.iso3)) continue;
+
+    const sameCountryRows = rows.filter((candidate) => candidate.iso3 === row.iso3);
+    const best = pickBestIndicatorPoint(sameCountryRows, options);
+    if (best) {
+      byIso3.set(row.iso3, best);
     }
   }
 
-  return latestByIso3;
-}
-
-async function fetchWorldBankIndicator(indicatorId) {
-  const payload = await fetchJson(`https://api.worldbank.org/v2/country/all/indicator/${indicatorId}?format=json&per_page=20000`);
-  return pickLatestValues(payload);
+  return byIso3;
 }
 
 function deriveRiskProfile(drinkingWaterValue, sanitationValue) {
@@ -78,8 +110,14 @@ function deriveRiskProfile(drinkingWaterValue, sanitationValue) {
   const status = qualityIndex < 55 ? "advisory" : qualityIndex < 75 ? "caution" : "safe";
   const statusLabel = status === "advisory" ? "Advisory" : status === "caution" ? "Caution" : "Safer";
   const riskScore = 100 - qualityIndex;
-  const riskLabel = Number.isFinite(riskScore) ? `${riskScore}/100` : "N/A";
-  return { qualityIndex, status, statusLabel, riskScore, riskLabel };
+  return {
+    qualityIndex,
+    qualityIndexLabel: `${qualityIndex}/100`,
+    status,
+    statusLabel,
+    riskScore,
+    riskLabel: `${riskScore}/100`
+  };
 }
 
 function buildSummary(country, drinkingWaterValue, sanitationValue, statusLabel) {
@@ -87,39 +125,16 @@ function buildSummary(country, drinkingWaterValue, sanitationValue, statusLabel)
     return `Country-level access metrics for ${country} were limited in the latest public pull. Aqua Guide can still open guidance and assistant support for this country.`;
   }
 
-  return `${country} is currently tagged ${statusLabel.toLowerCase()} based on the latest country-level drinking water and sanitation access data available in Aqua Guide.`;
-}
-
-function simplifyGeojson(geojson, byIso3) {
-  const features = Array.isArray(geojson?.features) ? geojson.features : [];
-  return {
-    type: "FeatureCollection",
-    features: features
-      .map((feature) => {
-        const iso3 = String(feature?.properties?.["ISO3166-1-Alpha-3"] || "").trim().toUpperCase();
-        if (!iso3 || !feature.geometry) return null;
-        const record = byIso3.get(iso3);
-        return {
-          type: "Feature",
-          properties: {
-            iso3,
-            iso2: String(feature?.properties?.["ISO3166-1-Alpha-2"] || record?.iso2 || "").trim().toUpperCase(),
-            name: feature?.properties?.name || record?.country || iso3
-          },
-          geometry: feature.geometry
-        };
-      })
-      .filter(Boolean)
-  };
+  return `${country} is currently tagged ${statusLabel.toLowerCase()} based on the latest plausible country-level drinking water and sanitation access data available in Aqua Guide.`;
 }
 
 async function build() {
-  const [countries, worldGeojson, drinkingWaterMap, sanitationMap, populationMap] = await Promise.all([
+  const [countries, atlasJson, drinkingWaterMap, sanitationMap, populationMap] = await Promise.all([
     fetchJson(COUNTRY_URL),
-    fetchJson(GEOJSON_URL),
-    fetchWorldBankIndicator(indicatorIds.drinkingWater),
-    fetchWorldBankIndicator(indicatorIds.sanitation),
-    fetchWorldBankIndicator(indicatorIds.population)
+    readFile(worldAtlasPath, "utf8").then(JSON.parse),
+    fetchWorldBankIndicator(indicatorIds.drinkingWater, { min: 0, max: 100, preferPositive: true }),
+    fetchWorldBankIndicator(indicatorIds.sanitation, { min: 0, max: 100, preferPositive: true }),
+    fetchWorldBankIndicator(indicatorIds.population, { min: 1, max: Number.MAX_SAFE_INTEGER, preferPositive: true })
   ]);
 
   const allCountries = Array.isArray(countries) ? countries : [];
@@ -128,6 +143,7 @@ async function build() {
     .map((country) => {
       const iso3 = String(country.cca3).toUpperCase();
       const iso2 = String(country.cca2 || "").toUpperCase();
+      const numericCode = String(country?.ccn3 || "").padStart(3, "0");
       const drinkingWater = drinkingWaterMap.get(iso3) || null;
       const sanitation = sanitationMap.get(iso3) || null;
       const population = populationMap.get(iso3) || null;
@@ -138,7 +154,9 @@ async function build() {
       return {
         iso2,
         iso3,
+        numericCode,
         country: country?.name?.common || iso3,
+        normalizedName: normalizeName(country?.name?.common || iso3),
         flag: country?.flag || "🌍",
         capital: Array.isArray(country?.capital) ? country.capital[0] || "" : "",
         lat: Number.isFinite(lat) ? lat : null,
@@ -158,27 +176,23 @@ async function build() {
           : Number(country?.population || 0)
             ? formatCompactNumber(country.population)
             : "",
-        qualityIndex: risk.qualityIndex,
-        qualityIndexLabel: `${risk.qualityIndex}/100`,
-        riskScore: risk.riskScore,
-        riskLabel: risk.riskLabel,
-        status: risk.status,
-        statusLabel: risk.statusLabel,
+        ...risk,
         summary: buildSummary(country?.name?.common || iso3, drinkingWater?.value, sanitation?.value, risk.statusLabel)
       };
     })
     .sort((left, right) => left.country.localeCompare(right.country));
 
-  const byIso3 = new Map(records.map((record) => [record.iso3, record]));
-  const simplifiedGeojson = simplifyGeojson(worldGeojson, byIso3);
-
   await mkdir(dataDir, { recursive: true });
   await writeFile(
     resolve(dataDir, "country-water-index.js"),
     `export const countryWaterIndex = ${JSON.stringify(records, null, 2)};\n\n` +
-      `const countryWaterIndexMap = new Map(countryWaterIndex.map((country) => [country.iso3, country]));\n\n` +
+      `const countryWaterIndexMap = new Map(countryWaterIndex.map((country) => [country.iso3, country]));\n` +
+      `const countryWaterIndexNumericMap = new Map(countryWaterIndex.map((country) => [country.numericCode, country]));\n\n` +
       `export function getCountryWaterRecord(iso3) {\n` +
       `  return countryWaterIndexMap.get(String(iso3 || "").toUpperCase()) || null;\n` +
+      `}\n\n` +
+      `export function getCountryWaterRecordByNumericCode(numericCode) {\n` +
+      `  return countryWaterIndexNumericMap.get(String(numericCode || "").padStart(3, "0")) || null;\n` +
       `}\n\n` +
       `export function getCountryHotspots(limit = 10) {\n` +
       `  return [...countryWaterIndex]\n` +
@@ -188,9 +202,9 @@ async function build() {
       `}\n`,
     "utf8"
   );
-  await writeFile(resolve(dataDir, "world-countries.geo.json"), JSON.stringify(simplifiedGeojson), "utf8");
+  await writeFile(resolve(dataDir, "world-countries.topo.json"), JSON.stringify(atlasJson), "utf8");
 
-  console.log(`Wrote ${records.length} countries and ${simplifiedGeojson.features.length} map features.`);
+  console.log(`Wrote ${records.length} countries and compact world topology.`);
 }
 
 build().catch((error) => {

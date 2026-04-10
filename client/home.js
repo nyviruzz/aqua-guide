@@ -1,7 +1,6 @@
 import { getMostCriticalRegion, sortRegionsByPriority, regions } from "../data/regions.js";
 import {
   bindFavoriteButtons,
-  bindSearchForm,
   renderAssistantTeaser,
   renderFavoriteStrip,
   renderHomeHero,
@@ -11,6 +10,7 @@ import {
   renderShell,
   setDocumentTitle
 } from "./common.js";
+import { attachPlaceSearch } from "./place-search.js";
 
 function renderMapPromo() {
   return `
@@ -64,10 +64,11 @@ function init() {
     </div>
   `;
 
-  bindSearchForm({
+  attachPlaceSearch({
     formSelector: "#regionSearchForm",
     inputSelector: "#regionSearchInput",
-    targetBasePath: "./"
+    suggestionsSelector: "#regionSearchSuggestions",
+    basePath: "./"
   });
   bindFavoriteButtons(main);
 }

@@ -23,6 +23,13 @@ const assistantLanguageStorageKey = "aqua-guide-assistant-language";
 const lastLocationStorageKey = "aqua-guide-last-location";
 const activeLocationStorageKey = "aqua-guide-active-location";
 
+function getStatusGlyph(status) {
+  if (status === "advisory") return "!";
+  if (status === "caution") return "•";
+  if (status === "safe") return "✓";
+  return "?";
+}
+
 export const languageCatalog = {
   en: {
     label: "English",
@@ -383,7 +390,6 @@ export function renderShell({ basePath = "./", activeNav = "home" }) {
         </a>
         <div class="nav-right">
           <ul class="nav-links">${renderNavLinks(basePath, activeNav)}</ul>
-          <button id="quickReadToggle" class="quick-read-toggle" type="button" aria-pressed="${getQuickRead()}">Quick Read</button>
         </div>
       </nav>
     </div>
@@ -397,12 +403,7 @@ export function renderShell({ basePath = "./", activeNav = "home" }) {
       </div>
     </div>
   `;
-  document.body.classList.toggle("quick-read", getQuickRead());
-  document.getElementById("quickReadToggle")?.addEventListener("click", () => {
-    const nextValue = !getQuickRead();
-    setQuickRead(nextValue);
-    document.getElementById("quickReadToggle")?.setAttribute("aria-pressed", String(nextValue));
-  });
+  document.body.classList.toggle("quick-read", false);
 }
 
 export function showToast(message) {
@@ -418,7 +419,7 @@ export function showToast(message) {
 export function renderStatusBadge(region) {
   return `
     <div class="status-badge status-badge-${region.status}" role="status" aria-label="Water status: ${escapeAttribute(region.statusLabel)}">
-      <span class="status-dot"></span>
+      <span class="status-dot" aria-hidden="true">${getStatusGlyph(region.status)}</span>
       <span>${escapeHtml(region.statusLabel)}</span>
     </div>
   `;
@@ -427,6 +428,7 @@ export function renderStatusBadge(region) {
 export function renderRegionCard(region, basePath = "./") {
   return `
     <article class="region-card region-card-${region.status}">
+      <div class="region-card-band"></div>
       <div class="region-card-top">
         <p class="eyebrow">${escapeHtml(region.tag)}</p>
         ${renderStatusBadge(region)}
@@ -633,11 +635,14 @@ export function renderHomeSearch(basePath = "./") {
   return `
     <section class="search-section">
       <div class="section-head compact"><div><p class="section-label">Find guidance</p><h2>Search any city, district, or community</h2></div></div>
-      <form id="regionSearchForm" class="search-bar">
-        <div class="search-icon">${iconSvg.search}</div>
-        <input id="regionSearchInput" type="text" placeholder="Search Nairobi, Dhaka, Beira, Port-au-Prince, or your community" autocomplete="off" />
-        <button class="primary-button" type="submit">Open guidance</button>
-      </form>
+      <div class="search-stack">
+        <form id="regionSearchForm" class="search-bar">
+          <div class="search-icon">${iconSvg.search}</div>
+          <input id="regionSearchInput" type="text" placeholder="Search Nairobi, Dhaka, Beira, Port-au-Prince, or your community" autocomplete="off" />
+          <button class="primary-button" type="submit">Open guidance</button>
+        </form>
+        <div id="regionSearchSuggestions" class="search-suggestions" hidden></div>
+      </div>
       <div class="search-helpers">
         ${featuredSearches
           .map((place) => `<a class="helper-chip" href="${basePath}region/?q=${encodeURIComponent(place.query)}">${escapeHtml(place.label)}</a>`)

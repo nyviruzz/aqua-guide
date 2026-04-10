@@ -175,6 +175,10 @@ function buildResolvedPlace(place) {
   };
 }
 
+function buildPlaceLabel(place) {
+  return buildDisplayName(place);
+}
+
 function normalizeGeocodeResult(result) {
   if (!result?.name || !Number.isFinite(Number(result.latitude)) || !Number.isFinite(Number(result.longitude))) {
     return null;
@@ -189,13 +193,64 @@ function normalizeGeocodeResult(result) {
   };
 }
 
-async function geocodePlace(query) {
+function buildFallbackQueries(query) {
+  const trimmed = String(query || "").trim();
+  if (!trimmed) return [];
+
+  const commaParts = trimmed
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  const fallbacks = [];
+  if (commaParts.length >= 2) {
+    fallbacks.push(commaParts.slice(-2).join(", "));
+    fallbacks.push(commaParts.at(-1));
+  }
+
+  return uniqueParts(fallbacks).filter((item) => item.toLowerCase() !== trimmed.toLowerCase());
+}
+
+async function geocodePlaces(query, count = 5) {
   const payload = await fetchCachedJson(
-    `geocode:${String(query).trim().toLowerCase()}`,
-    `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=5&language=en&format=json`,
+    `geocode:${String(query).trim().toLowerCase()}:${count}`,
+    `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=${encodeURIComponent(count)}&language=en&format=json`,
     1000 * 60 * 60 * 6
   );
-  const results = Array.isArray(payload?.results) ? payload.results.map(normalizeGeocodeResult).filter(Boolean) : [];
+  return Array.isArray(payload?.results) ? payload.results.map(normalizeGeocodeResult).filter(Boolean) : [];
+}
+
+export async function searchPlaceCandidates(query, count = 6) {
+  const trimmed = String(query || "").trim();
+  if (!trimmed) return [];
+
+  const attempts = [trimmed, ...buildFallbackQueries(trimmed)];
+  const seen = new Set();
+
+  for (const attempt of attempts) {
+    const results = await geocodePlaces(attempt, count);
+    if (!results.length) continue;
+
+    return results
+      .map((place) => ({
+        ...place,
+        label: buildPlaceLabel(place),
+        matchedQuery: attempt
+      }))
+      .filter((place) => {
+        const key = `${place.lat}:${place.lng}:${place.countryCode}:${place.name}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .slice(0, count);
+  }
+
+  return [];
+}
+
+async function geocodePlace(query) {
+  const results = await searchPlaceCandidates(query, 5);
   return results[0] || null;
 }
 

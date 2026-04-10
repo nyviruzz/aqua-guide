@@ -2,7 +2,6 @@ import { findRegionByQuery, getMostCriticalRegion } from "../data/regions.js";
 import { detectUserLocationReference, buildTrackedPayload, hydrateTrackedPayload, resolveDynamicPayloadFromCoordinates, resolveDynamicPayloadFromQuery } from "./location-service.js";
 import {
   bindActionModal,
-  bindSearchForm,
   escapeHtml,
   iconSvg,
   isFavorite,
@@ -20,6 +19,7 @@ import {
   showToast,
   toggleFavorite
 } from "./common.js";
+import { attachPlaceSearch } from "./place-search.js";
 
 function getParam(name) {
   return new URLSearchParams(window.location.search).get(name);
@@ -153,7 +153,7 @@ function buildRegionPage(payload) {
               <span class="meta-pill">${escapeHtml(region.recordLabel)}</span>
             </div>
           </div>
-          <aside class="hero-status-card solid">
+          <aside class="hero-status-card solid hero-status-card-${escapeHtml(region.status)}">
             <div class="hero-status-top">
               <p class="eyebrow">Place status</p>
               ${renderStatusBadge(region)}
@@ -180,12 +180,15 @@ function buildRegionPage(payload) {
       </section>
 
       <section class="search-section search-section-inline">
-        <form id="regionSearchForm" class="search-bar">
-          <div class="search-icon">${iconSvg.search}</div>
-          <input id="regionSearchInput" type="text" placeholder="Search another city, country, or featured region" autocomplete="off" />
-          <button class="primary-button" type="submit">Open guidance</button>
-          <button id="useLocationButton" class="secondary-button" type="button">Use my location</button>
-        </form>
+        <div class="search-stack">
+          <form id="regionSearchForm" class="search-bar">
+            <div class="search-icon">${iconSvg.search}</div>
+            <input id="regionSearchInput" type="text" placeholder="Search another city, country, or featured region" autocomplete="off" />
+            <button class="primary-button" type="submit">Open guidance</button>
+            <button id="useLocationButton" class="secondary-button" type="button">Use my location</button>
+          </form>
+          <div id="regionSearchSuggestions" class="search-suggestions" hidden></div>
+        </div>
         <div id="toast" class="toast" role="status" aria-live="polite"></div>
       </section>
 
@@ -352,11 +355,12 @@ async function init() {
     setDocumentTitle(currentPayload.region.name);
     main.innerHTML = buildRegionPage(currentPayload);
 
-    bindSearchForm({
-      formSelector: "#regionSearchForm",
-      inputSelector: "#regionSearchInput",
-      targetBasePath: "../"
-    });
+  attachPlaceSearch({
+    formSelector: "#regionSearchForm",
+    inputSelector: "#regionSearchInput",
+    suggestionsSelector: "#regionSearchSuggestions",
+    basePath: "../"
+  });
     bindActionModal(currentPayload.region);
 
     document.getElementById("saveRegionButton")?.addEventListener("click", () => {

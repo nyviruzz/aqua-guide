@@ -235,8 +235,9 @@ try {
   await expectText(page, ".helper-chip", "Nairobi, Kenya");
 
   await page.fill("#regionSearchInput", "Nairobi, Kenya");
-  await page.click("#regionSearchForm .primary-button");
-  await page.waitForURL(/\/region\/\?q=/);
+  await expectText(page, "#regionSearchSuggestions", "Nairobi, Nairobi County, Kenya");
+  await page.click("#regionSearchSuggestions .search-suggestion");
+  await page.waitForURL(/\/region\/\?(q=|lat=)/);
   await expectText(page, "h1", "Nairobi, Nairobi County, Kenya");
   await expectText(page, ".hero-status-card h2", "Quality index");
   await expectText(page, "#liveContextMount", "67%");
@@ -327,13 +328,16 @@ try {
 
   await page.goto(`${baseUrl}/resources/`, { waitUntil: "networkidle" });
   await page.click("[data-group='field']");
-  await expectText(page, "#resourceCardGrid", "Use one household-ready summary");
+  await expectText(page, "#resource-group-field", "Use one household-ready summary");
 
   await page.goto(baseUrl, { waitUntil: "networkidle" });
   await expectText(page, ".saved-chip", "Nairobi, Nairobi County, Kenya");
 
   await page.goto(`${baseUrl}/map/`, { waitUntil: "networkidle" });
   await expectText(page, "h1", "Country water risk map");
+  await page.waitForFunction(() => document.getElementById("mapLoading")?.hidden === true);
+  await page.fill("#mapSearchInput", "Nairobi, Kenya");
+  await expectText(page, "#mapSearchSuggestions", "Nairobi, Nairobi County, Kenya");
   await page.waitForSelector(".leaflet-interactive[data-iso3='KEN']");
   await page.evaluate(() => {
     document.querySelector(".leaflet-interactive[data-iso3='KEN']")?.dispatchEvent(

@@ -1,6 +1,8 @@
 import { findRegionByQuery } from "../data/regions.js";
 import { buildTrackedPayload, hydrateTrackedPayload, resolveDynamicPayloadFromCoordinates, resolveDynamicPayloadFromQuery } from "./location-service.js";
 
+const hostedChatApiBaseUrl = "https://aqua-guide-chat.onrender.com";
+
 function trimValue(value, maxLength = 320) {
   return String(value ?? "").replace(/\s+/g, " ").trim().slice(0, maxLength);
 }
@@ -152,6 +154,15 @@ async function fetchJson(url, options) {
   return payload;
 }
 
+function getChatApiBaseUrl() {
+  if (typeof window !== "undefined" && typeof window.AQUA_GUIDE_CHAT_API_BASE_URL === "string") {
+    return window.AQUA_GUIDE_CHAT_API_BASE_URL.replace(/\/$/, "");
+  }
+  const host = typeof window !== "undefined" ? window.location.hostname : "";
+  if (host === "localhost" || host === "127.0.0.1") return "";
+  return hostedChatApiBaseUrl;
+}
+
 export function sendAssistantMessage(payload) {
   const fallback = () => ({
     text: buildLocalizedAssistantFallback({
@@ -162,13 +173,24 @@ export function sendAssistantMessage(payload) {
     meta: "Aqua Guide local guidance"
   });
 
-  return fetchJson("/api/chat", {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), 15000);
+  const apiBase = getChatApiBaseUrl();
+
+  return fetchJson(`${apiBase}/api/chat`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json"
     },
+    signal: controller.signal,
     body: JSON.stringify(payload)
   })
-    .then((response) => (trimValue(response?.text || "", 4000) ? response : fallback()))
-    .catch(() => fallback());
+    .then((response) => {
+      window.clearTimeout(timeoutId);
+      return trimValue(response?.text || "", 4000) ? response : fallback();
+    })
+    .catch(() => {
+      window.clearTimeout(timeoutId);
+      return fallback();
+    });
 }

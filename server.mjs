@@ -10,6 +10,10 @@ const envFile = join(root, ".env");
 const envConfig = existsSync(envFile) ? parseDotEnv(readFileSync(envFile, "utf8")) : {};
 const openAiApiKey = process.env.OPENAI_API_KEY || envConfig.OPENAI_API_KEY;
 const openAiModel = process.env.OPENAI_MODEL || envConfig.OPENAI_MODEL || "gpt-4.1";
+const allowedOrigins = (process.env.ALLOWED_ORIGINS || envConfig.ALLOWED_ORIGINS || "http://localhost:4173,http://127.0.0.1:4173,https://aqua-guide-static.onrender.com")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
 
 const types = {
   ".css": "text/css; charset=utf-8",
@@ -48,7 +52,11 @@ function sendJson(res, statusCode, payload) {
 }
 
 function getClientKey(req) {
-  const remoteAddress = req.socket.remoteAddress || "unknown";
+  const forwardedFor = String(req.headers["x-forwarded-for"] || "")
+    .split(",")
+    .map((value) => value.trim())
+    .find(Boolean);
+  const remoteAddress = forwardedFor || req.socket.remoteAddress || "unknown";
   const userAgent = String(req.headers["user-agent"] || "unknown").slice(0, 160);
   return `${remoteAddress}:${userAgent}`;
 }
@@ -72,6 +80,21 @@ function applySecurityHeaders(res) {
       "form-action 'self'"
     ].join("; ")
   );
+}
+
+function isAllowedOrigin(origin) {
+  return allowedOrigins.includes(origin);
+}
+
+function applyApiCors(req, res) {
+  const origin = String(req.headers.origin || "");
+  if (!origin) return true;
+  if (!isAllowedOrigin(origin)) return false;
+  res.setHeader("Access-Control-Allow-Origin", origin);
+  res.setHeader("Vary", "Origin");
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  return true;
 }
 
 function readJsonBody(req) {
@@ -257,7 +280,8 @@ async function handleChat(req, res) {
     if (!openAiApiKey) {
       sendJson(res, 200, {
         text: buildFallbackResponse({ language, location }),
-        meta: "Aqua Guide fallback guidance"
+        meta: "Aqua Guide fallback guidance",
+        source: "fallback"
       });
       return;
     }
@@ -269,22 +293,28 @@ async function handleChat(req, res) {
       conversation
     });
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
     const response = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${openAiApiKey}`
       },
+      signal: controller.signal,
       body: JSON.stringify({
         model: openAiModel,
-        input: prompt
+        input: prompt,
+        max_output_tokens: 420
       })
     });
+    clearTimeout(timeoutId);
 
     if (!response.ok) {
       sendJson(res, 200, {
         text: buildFallbackResponse({ language, location }),
-        meta: "Aqua Guide fallback guidance"
+        meta: "Aqua Guide fallback guidance",
+        source: "fallback"
       });
       return;
     }
@@ -293,12 +323,14 @@ async function handleChat(req, res) {
     const text = extractResponseText(payload);
     sendJson(res, 200, {
       text: text || buildFallbackResponse({ language, location }),
-      meta: openAiModel
+      meta: openAiModel,
+      source: text ? "openai" : "fallback"
     });
   } catch (error) {
     sendJson(res, 200, {
       text: buildFallbackResponse({ language, location }),
-      meta: error instanceof Error ? error.message : "Aqua Guide fallback guidance"
+      meta: "Aqua Guide fallback guidance",
+      source: "fallback"
     });
   }
 }
@@ -312,7 +344,21 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  if (url.pathname === "/api/chat" && req.method === "OPTIONS") {
+    if (!applyApiCors(req, res)) {
+      sendJson(res, 403, { error: "Origin not allowed." });
+      return;
+    }
+    res.statusCode = 204;
+    res.end();
+    return;
+  }
+
   if (url.pathname === "/api/chat" && req.method === "POST") {
+    if (!applyApiCors(req, res)) {
+      sendJson(res, 403, { error: "Origin not allowed." });
+      return;
+    }
     await handleChat(req, res);
     return;
   }
