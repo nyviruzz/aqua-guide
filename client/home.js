@@ -1,4 +1,4 @@
-import { getRegions } from "./api.js";
+import { getMostCriticalRegion, sortRegionsByPriority, regions } from "../data/regions.js";
 import {
   bindFavoriteButtons,
   bindSearchForm,
@@ -12,57 +12,40 @@ import {
   setDocumentTitle
 } from "./common.js";
 
-async function init() {
+function init() {
   renderShell({ basePath: "./", activeNav: "home" });
   setDocumentTitle("");
 
   const main = document.getElementById("main");
+  const critical = getMostCriticalRegion();
+  const regionCards = sortRegionsByPriority(regions).map((region) => renderRegionCard(region, "./")).join("");
+
   main.innerHTML = `
-    <section class="loading-state">
-      <p class="section-label">Loading</p>
-      <h1>Preparing the latest region guidance.</h1>
-    </section>
+    ${renderHomeHero(critical, "./")}
+    <div class="page-shell">
+      ${renderHomeSearch("./")}
+      ${renderFavoriteStrip("./")}
+      <section class="region-grid-section">
+        <div class="section-head">
+          <div>
+            <p class="section-label">Featured profiles</p>
+            <h2>Curated launch profiles plus global search coverage</h2>
+          </div>
+          <p class="section-meta">Featured profiles are presentation-ready, while search can open guidance for cities and communities worldwide using public APIs.</p>
+        </div>
+        <div class="region-grid">${regionCards}</div>
+      </section>
+      ${renderHowItWorks()}
+      ${renderAssistantTeaser("./")}
+    </div>
   `;
 
-  try {
-    const payload = await getRegions();
-    const regionCards = payload.regions.map((region) => renderRegionCard(region, "./")).join("");
-
-    main.innerHTML = `
-      ${renderHomeHero(payload.critical, "./")}
-      <div class="page-shell">
-        ${renderHomeSearch("./")}
-        ${renderFavoriteStrip("./")}
-        <section class="region-grid-section">
-          <div class="section-head">
-            <div>
-              <p class="section-label">Tracked regions</p>
-              <h2>Guidance built around regions facing real water stress</h2>
-            </div>
-            <p class="section-meta">Each region profile combines live country indicators with plain-language household guidance.</p>
-          </div>
-          <div class="region-grid">${regionCards}</div>
-        </section>
-        ${renderHowItWorks()}
-        ${renderAssistantTeaser("./")}
-      </div>
-    `;
-
-    bindSearchForm({
-      formSelector: "#regionSearchForm",
-      inputSelector: "#regionSearchInput",
-      targetBasePath: "./"
-    });
-    bindFavoriteButtons(main);
-  } catch (error) {
-    main.innerHTML = `
-      <section class="empty-state">
-        <p class="section-label">Unavailable</p>
-        <h1>Aqua Guide could not load the latest region data.</h1>
-        <p>${error instanceof Error ? error.message : "Unknown error"}</p>
-      </section>
-    `;
-  }
+  bindSearchForm({
+    formSelector: "#regionSearchForm",
+    inputSelector: "#regionSearchInput",
+    targetBasePath: "./"
+  });
+  bindFavoriteButtons(main);
 }
 
 init();

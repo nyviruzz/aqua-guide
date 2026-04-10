@@ -7,6 +7,7 @@
     "start": "node server.mjs",
     "screenshots": "node scripts/capture-screenshots.mjs",
     "test:functional": "node scripts/test-functional.mjs",
+    "test:live-smoke": "node scripts/test-live-smoke.mjs",
     "screenshots:presentation": "node scripts/capture-presentation.mjs"
   },
   "devDependencies": {

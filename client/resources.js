@@ -41,8 +41,8 @@ function renderPage(group = "households") {
       <section class="method-section">
         <div class="section-head"><div><p class="section-label">How Aqua Guide works</p><h2>What powers the product</h2></div></div>
         <div class="method-grid">
-          <article class="method-card"><h3>Tracked regions</h3><p>Each region combines a curated household guidance layer with live public signals such as country-level water access and sanitation indicators.</p></article>
-          <article class="method-card"><h3>Assistant support</h3><p>The assistant can respond in multiple languages and uses the selected region as context when one is active.</p></article>
+          <article class="method-card"><h3>Global search coverage</h3><p>Any searched place can combine live public water-access indicators, weather conditions, and household guidance without waiting for a custom backend profile.</p></article>
+          <article class="method-card"><h3>Assistant support</h3><p>The assistant can respond in multiple languages and uses the selected place as context when one is active.</p></article>
           <article class="method-card"><h3>Operational framing</h3><p>The interface is designed for people who need one clear next step quickly, not a wall of technical data.</p></article>
         </div>
       </section>

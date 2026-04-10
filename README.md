@@ -1,24 +1,26 @@
 # Aqua Guide
 
-Aqua Guide is a multi-page web application for water guidance in regions facing scarcity, flooding, service interruption, and fragile infrastructure. It combines a curated household guidance layer with live public signals, then turns that into plain-language actions that families, volunteers, and field teams can actually use.
+Aqua Guide is a multi-page web application for water guidance in places facing scarcity, flooding, service interruption, and fragile infrastructure. It combines featured launch profiles with live public data for searched locations, then turns that into plain-language actions that families, volunteers, and field teams can actually use.
 
 ## Product snapshot
 
-- Four tracked region profiles:
+- Four featured launch profiles:
   - `Cox's Bazar, Bangladesh`
   - `Turkana County, Kenya`
   - `Beira, Mozambique`
   - `Port-au-Prince, Haiti`
+- Global place search for cities, districts, and communities through public APIs
 - Separate product pages for:
   - home
   - region guidance
   - multilingual AI assistant
   - resources
 - Live country indicators from the World Bank
-- Live weather context from Open-Meteo
-- Geocoding and reverse geocoding via OpenStreetMap Nominatim
+- Live weather and place search from Open-Meteo
+- Reverse geocoding via BigDataCloud
+- Country metadata via REST Countries
 - Multilingual AI chat through a server-side OpenAI route with a safe fallback when no key is configured
-- Local persistence for saved regions, quick-read mode, and last-viewed region
+- Local persistence for saved places, quick-read mode, and last-viewed location
 
 ## Why this product works
 
@@ -64,7 +66,8 @@ If your Obsidian vault is not under `~/Documents/Github/my-notes`, set `OBSIDIAN
 ## Stack
 
 - Static HTML, CSS, and browser JavaScript for the frontend
-- A lightweight Node server for hosting, API proxying, caching, and security headers
+- Client-side public API calls for place search, live context, and country metadata
+- A lightweight Node server for hosting, security headers, health checks, and the OpenAI-backed assistant route
 - Playwright for functional validation and screenshot capture
 
 ## Project structure
@@ -74,9 +77,11 @@ If your Obsidian vault is not under `~/Documents/Github/my-notes`, set `OBSIDIAN
 - `assistant/index.html`: assistant page
 - `resources/index.html`: resource page
 - `client/`: page controllers and shared browser utilities
-- `data/regions.js`: tracked region dataset
-- `server.mjs`: static hosting plus API endpoints
+- `data/regions.js`: featured launch profiles and search helpers
+- `client/location-service.js`: public API orchestration for place search and live context
+- `server.mjs`: static hosting plus assistant and health endpoints
 - `scripts/test-functional.mjs`: end-to-end validation
+- `scripts/test-live-smoke.mjs`: live upstream smoke check
 - `scripts/capture-presentation.mjs`: screenshot capture
 - `.env.example`: local environment template
 - `render.yaml`: Render deployment config
@@ -87,7 +92,8 @@ If your Obsidian vault is not under `~/Documents/Github/my-notes`, set `OBSIDIAN
   - basic drinking water access
   - basic sanitation access
   - population
-- Open-Meteo current conditions
-- OpenStreetMap Nominatim geocoding
+- Open-Meteo geocoding and current conditions
+- BigDataCloud reverse geocoding
+- REST Countries metadata
 
-The tracked regions still use curated household guidance copy on top of those public signals, because a practical water-guidance product needs both live context and human-readable operational advice.
+The featured launch profiles still use curated household guidance copy on top of those public signals, because a practical water-guidance product needs both live context and human-readable operational advice.

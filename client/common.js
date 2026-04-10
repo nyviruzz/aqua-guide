@@ -1,4 +1,4 @@
-import { getMostCriticalRegion, getRegionById, regions, sortRegionsByPriority } from "../data/regions.js";
+import { featuredSearches, getMostCriticalRegion, getRegionById, regions } from "../data/regions.js";
 
 export const iconSvg = {
   check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>',
@@ -20,14 +20,18 @@ export const iconSvg = {
 const favoriteStorageKey = "aqua-guide-favorites";
 const quickReadStorageKey = "aqua-guide-quick-read";
 const assistantLanguageStorageKey = "aqua-guide-assistant-language";
-const lastRegionStorageKey = "aqua-guide-last-region";
+const lastLocationStorageKey = "aqua-guide-last-location";
+const activeLocationStorageKey = "aqua-guide-active-location";
 
 export const languageCatalog = {
   en: { label: "English", placeholder: "Ask about safe water, treatment, storage, or translation..." },
+  es: { label: "Spanish", placeholder: "Pregunta sobre agua segura, tratamiento, almacenamiento o traduccion..." },
   fr: { label: "French", placeholder: "Posez une question sur la sécurité de l'eau, le traitement ou la traduction..." },
   sw: { label: "Swahili", placeholder: "Uliza kuhusu maji salama, matibabu, uhifadhi, au tafsiri..." },
   ar: { label: "Arabic", placeholder: "اسأل عن سلامة المياه أو المعالجة أو التخزين أو الترجمة..." },
-  bn: { label: "Bengali", placeholder: "নিরাপদ পানি, চিকিৎসা, সংরক্ষণ, বা অনুবাদ সম্পর্কে জিজ্ঞেস করুন..." }
+  bn: { label: "Bengali", placeholder: "নিরাপদ পানি, চিকিৎসা, সংরক্ষণ, বা অনুবাদ সম্পর্কে জিজ্ঞেস করুন..." },
+  pt: { label: "Portuguese", placeholder: "Pergunte sobre agua segura, tratamento, armazenamento ou traducao..." },
+  ht: { label: "Haitian Creole", placeholder: "Poze kestyon sou dlo pwop, tretman, depo, oswa tradiksyon..." }
 };
 
 export function escapeHtml(value) {
@@ -54,27 +58,69 @@ export function formatPercent(value) {
 export function getFavorites() {
   try {
     const parsed = JSON.parse(localStorage.getItem(favoriteStorageKey) ?? "[]");
-    return Array.isArray(parsed) ? parsed : [];
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .map((entry) => {
+        if (typeof entry === "string") {
+          const region = getRegionById(entry);
+          if (!region) return null;
+          return {
+            id: region.id,
+            name: region.name,
+            flag: region.flag,
+            status: region.status,
+            statusLabel: region.statusLabel,
+            href: `./region/?id=${encodeURIComponent(region.id)}`
+          };
+        }
+        if (!entry || typeof entry !== "object") return null;
+        return {
+          id: String(entry.id || ""),
+          name: String(entry.name || ""),
+          flag: String(entry.flag || "🌍"),
+          status: String(entry.status || "caution"),
+          statusLabel: String(entry.statusLabel || "Caution"),
+          href: String(entry.href || "")
+        };
+      })
+      .filter((entry) => entry?.id && entry?.name && entry?.href);
   } catch {
     return [];
   }
 }
 
-export function isFavorite(regionId) {
-  return getFavorites().includes(regionId);
+export function isFavorite(location) {
+  const id = typeof location === "string" ? location : location?.id;
+  return getFavorites().some((favorite) => favorite.id === id);
 }
 
-export function toggleFavorite(regionId) {
+export function toggleFavorite(location) {
+  const nextFavorite =
+    typeof location === "string"
+      ? (() => {
+          const region = getRegionById(location);
+          if (!region) return null;
+          return {
+            id: region.id,
+            name: region.name,
+            flag: region.flag,
+            status: region.status,
+            statusLabel: region.statusLabel,
+            href: `./region/?id=${encodeURIComponent(region.id)}`
+          };
+        })()
+      : location;
+  if (!nextFavorite?.id) return false;
   const favorites = getFavorites();
-  const nextFavorites = favorites.includes(regionId)
-    ? favorites.filter((id) => id !== regionId)
-    : [...favorites, regionId];
+  const nextFavorites = favorites.some((favorite) => favorite.id === nextFavorite.id)
+    ? favorites.filter((favorite) => favorite.id !== nextFavorite.id)
+    : [...favorites, nextFavorite];
   localStorage.setItem(favoriteStorageKey, JSON.stringify(nextFavorites));
-  return nextFavorites.includes(regionId);
+  return nextFavorites.some((favorite) => favorite.id === nextFavorite.id);
 }
 
 export function getFavoriteRegions() {
-  return getFavorites().map(getRegionById);
+  return getFavorites();
 }
 
 export function getQuickRead() {
@@ -97,12 +143,88 @@ export function setAssistantLanguage(language) {
   }
 }
 
-export function getLastRegionId() {
-  return localStorage.getItem(lastRegionStorageKey) || getMostCriticalRegion().id;
+export function getLastLocationReference() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(lastLocationStorageKey) ?? "null");
+    if (parsed?.type === "id" && typeof parsed.value === "string") return parsed;
+    if (parsed?.type === "query" && typeof parsed.value === "string") return parsed;
+  } catch {
+    // Ignore parse failures.
+  }
+  return { type: "id", value: getMostCriticalRegion().id };
 }
 
-export function setLastRegionId(regionId) {
-  localStorage.setItem(lastRegionStorageKey, regionId);
+export function setLastLocationReference(reference) {
+  if (!reference?.type || !reference?.value) return;
+  localStorage.setItem(
+    lastLocationStorageKey,
+    JSON.stringify({
+      type: reference.type,
+      value: reference.value
+    })
+  );
+}
+
+function trimAssistantValue(value, maxLength = 260) {
+  return String(value ?? "").replace(/\s+/g, " ").trim().slice(0, maxLength);
+}
+
+function compactAssistantContext(region) {
+  if (!region?.name) return null;
+  const actions = Array.isArray(region.actions)
+    ? region.actions
+        .slice(0, 6)
+        .map((action) => ({
+          title: trimAssistantValue(action?.title, 120),
+          description: trimAssistantValue(action?.description, 200)
+        }))
+        .filter((action) => action.title)
+    : [];
+
+  return {
+    id: trimAssistantValue(region.id, 160),
+    tracked: Boolean(region.tracked),
+    name: trimAssistantValue(region.name, 120),
+    country: trimAssistantValue(region.country, 80),
+    flag: trimAssistantValue(region.flag, 8),
+    status: trimAssistantValue(region.status, 24),
+    statusLabel: trimAssistantValue(region.statusLabel, 48),
+    utility: trimAssistantValue(region.utility, 160),
+    recordLabel: trimAssistantValue(region.recordLabel, 120),
+    tag: trimAssistantValue(region.tag, 80),
+    oneLiner: trimAssistantValue(region.oneLiner, 240),
+    heroDescription: trimAssistantValue(region.heroDescription, 260),
+    summaryTitle: trimAssistantValue(region.summaryTitle, 120),
+    summaryText: trimAssistantValue(region.summaryText, 600),
+    quickSummary: trimAssistantValue(region.quickSummary, 320),
+    qualityIndex: Number(region.qualityIndex || 0),
+    metrics: {
+      updated: trimAssistantValue(region?.metrics?.updated, 80)
+    },
+    aiSuggestions: Array.isArray(region.aiSuggestions)
+      ? region.aiSuggestions.map((item) => trimAssistantValue(item, 120)).filter(Boolean).slice(0, 6)
+      : [],
+    actions
+  };
+}
+
+export function getActiveLocationContext() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(activeLocationStorageKey) ?? "null");
+    return parsed && typeof parsed === "object" ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+export function setActiveLocationContext(region) {
+  const compact = compactAssistantContext(region);
+  if (!compact) return;
+  localStorage.setItem(activeLocationStorageKey, JSON.stringify(compact));
+}
+
+export function clearActiveLocationContext() {
+  localStorage.removeItem(activeLocationStorageKey);
 }
 
 export function setDocumentTitle(label) {
@@ -144,7 +266,7 @@ export function renderShell({ basePath = "./", activeNav = "home" }) {
   `;
   footer.innerHTML = `
     <div class="footer-inner">
-      <p>Aqua Guide provides plain-language water guidance for tracked regions and should be used alongside official local advisories.</p>
+      <p>Aqua Guide provides plain-language water guidance using public global data and should be used alongside official local advisories.</p>
       <div class="footer-links">
         <a href="${basePath}assistant/">Assistant</a>
         <a href="${basePath}resources/">Resources</a>
@@ -220,7 +342,7 @@ export function renderFavoriteStrip(basePath = "./") {
         ${favorites
           .map(
             (region) => `
-              <a class="saved-chip" href="${basePath}region/?id=${encodeURIComponent(region.id)}">
+              <a class="saved-chip" href="${region.href.startsWith("./") ? region.href.replace("./", basePath) : region.href}">
                 <span>${escapeHtml(region.flag)} ${escapeHtml(region.name)}</span>
                 ${renderStatusBadge(region)}
               </a>
@@ -386,14 +508,16 @@ export function renderHomeHero(region, basePath = "./") {
 export function renderHomeSearch(basePath = "./") {
   return `
     <section class="search-section">
-      <div class="section-head compact"><div><p class="section-label">Find guidance</p><h2>Search by region or place name</h2></div></div>
+      <div class="section-head compact"><div><p class="section-label">Find guidance</p><h2>Search any city, district, or community</h2></div></div>
       <form id="regionSearchForm" class="search-bar">
         <div class="search-icon">${iconSvg.search}</div>
-        <input id="regionSearchInput" type="text" placeholder="Search Cox's Bazar, Turkana, Beira, Haiti, or another place" autocomplete="off" />
+        <input id="regionSearchInput" type="text" placeholder="Search Nairobi, Dhaka, Beira, Port-au-Prince, or your community" autocomplete="off" />
         <button class="primary-button" type="submit">Open guidance</button>
       </form>
       <div class="search-helpers">
-        ${sortRegionsByPriority(regions).map((region) => `<a class="helper-chip" href="${basePath}region/?id=${encodeURIComponent(region.id)}">${escapeHtml(region.name)}</a>`).join("")}
+        ${featuredSearches
+          .map((place) => `<a class="helper-chip" href="${basePath}region/?q=${encodeURIComponent(place.query)}">${escapeHtml(place.label)}</a>`)
+          .join("")}
       </div>
       <div id="toast" class="toast" role="status" aria-live="polite"></div>
     </section>
@@ -419,13 +543,21 @@ export function bindSearchForm({ formSelector, inputSelector, targetBasePath }) 
 
 export function renderAssistantTeaser(basePath = "./") {
   const critical = getMostCriticalRegion();
+  const languageLinks = Object.entries(languageCatalog)
+    .slice(0, 6)
+    .map(
+      ([language, config]) =>
+        `<a class="language-pill ${language === getAssistantLanguage() ? "is-active" : ""}" href="${basePath}assistant/?region=${encodeURIComponent(critical.id)}&lang=${encodeURIComponent(language)}">${escapeHtml(config.label)}</a>`
+    )
+    .join("");
+
   return `
     <section class="assistant-teaser">
       <div class="assistant-teaser-copy">
         <p class="section-label">Ask Aqua</p>
         <h2>Multilingual guidance when the situation changes quickly</h2>
-        <p>Ask for treatment steps, storage guidance, translation support, or a plain-language explanation of the current region profile.</p>
-        <div class="language-row">${renderLanguageButtons(getAssistantLanguage())}</div>
+        <p>Ask for treatment steps, storage guidance, translation support, or a plain-language explanation for the place currently on screen.</p>
+        <div class="language-row">${languageLinks}</div>
         <a class="primary-button" href="${basePath}assistant/?region=${encodeURIComponent(critical.id)}">Open assistant</a>
       </div>
       <div class="assistant-preview">
@@ -441,7 +573,7 @@ export function renderAssistantTeaser(basePath = "./") {
 export function renderHowItWorks() {
   return `
     <section class="how-it-works">
-      <article><div class="how-icon">${iconSvg.globe}</div><h3>We monitor</h3><p>Tracked regions combine public indicators, weather context, and curated household guidance.</p></article>
+      <article><div class="how-icon">${iconSvg.globe}</div><h3>We monitor</h3><p>Any searched place can combine public water indicators, weather context, and household guidance in seconds.</p></article>
       <article><div class="how-icon">${iconSvg.file}</div><h3>We simplify</h3><p>Complex water access and quality signals are turned into one clear summary and four immediate actions.</p></article>
       <article><div class="how-icon">${iconSvg.check}</div><h3>You act</h3><p>Families, field staff, and presenters can share the same plan in seconds.</p></article>
     </section>
@@ -457,7 +589,7 @@ export function renderNotFoundState(basePath = "./") {
     <section class="empty-state">
       <p class="section-label">Region not found</p>
       <h1>We could not match that place yet.</h1>
-      <p>Try a tracked region or start with the most critical profile.</p>
+      <p>Try another city, district, or community name, or start with a featured profile.</p>
       <a class="primary-button" href="${basePath}region/?id=${encodeURIComponent(getMostCriticalRegion().id)}">Open a region</a>
     </section>
   `;

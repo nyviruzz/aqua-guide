@@ -37,35 +37,161 @@ async function expectText(page, selector, expected) {
   );
 }
 
+function worldBankSeries(id, value, year = "2023") {
+  return [
+    {
+      page: 1,
+      pages: 1,
+      per_page: 1,
+      total: 1,
+      sourceid: "2",
+      lastupdated: "2026-04-10"
+    },
+    [
+      {
+        indicator: {
+          id,
+          value: id
+        },
+        country: {
+          id: "KEN",
+          value: "Kenya"
+        },
+        countryiso3code: "KEN",
+        date: year,
+        value
+      }
+    ]
+  ];
+}
+
 const server = spawn("node", ["server.mjs"], {
   cwd: root,
-  env: { ...process.env, PORT: String(port) },
+  env: { ...process.env, PORT: String(port), OPENAI_API_KEY: "" },
   stdio: "ignore"
 });
 
 try {
   await waitForServer(`${baseUrl}/healthz`);
 
-  const regionsPayload = await fetch(`${baseUrl}/api/regions`).then((response) => response.json());
-  assert.equal(Array.isArray(regionsPayload.regions), true);
-  assert.ok(regionsPayload.regions.length >= 4);
-  assert.equal(regionsPayload.critical.id, "turkana-kenya");
-
   const dotEnvResponse = await fetch(`${baseUrl}/.env`);
   assert.equal(dotEnvResponse.status, 404);
-
-  const searchPayload = await fetch(`${baseUrl}/api/search?q=${encodeURIComponent("lodwar")}`).then((response) => response.json());
-  assert.equal(searchPayload.region.id, "turkana-kenya");
-
-  const reversePayload = await fetch(`${baseUrl}/api/reverse?lat=-19.8333&lng=34.85`).then((response) => response.json());
-  assert.equal(reversePayload.region.id, "beira-mozambique");
 
   const browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({
     viewport: { width: 1440, height: 1200 },
-    geolocation: { latitude: -19.8333, longitude: 34.85 },
+    geolocation: { latitude: -1.286389, longitude: 36.817223 },
     permissions: ["geolocation", "clipboard-read", "clipboard-write"]
   });
+
+  await context.route("https://geocoding-api.open-meteo.com/**", async (route) => {
+    const url = new URL(route.request().url());
+    const query = (url.searchParams.get("name") || "").toLowerCase();
+    const resultMap = {
+      "nairobi, kenya": {
+        results: [
+          {
+            name: "Nairobi",
+            latitude: -1.28333,
+            longitude: 36.81667,
+            country: "Kenya",
+            country_code: "KE",
+            admin1: "Nairobi County"
+          }
+        ]
+      },
+      "lusaka, zambia": {
+        results: [
+          {
+            name: "Lusaka",
+            latitude: -15.41667,
+            longitude: 28.28333,
+            country: "Zambia",
+            country_code: "ZM",
+            admin1: "Lusaka Province"
+          }
+        ]
+      }
+    };
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(resultMap[query] || { results: [] })
+    });
+  });
+
+  await context.route("https://api.open-meteo.com/**", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        current: {
+          temperature_2m: 28,
+          precipitation: 1.7,
+          weather_code: 61,
+          wind_speed_10m: 14
+        }
+      })
+    });
+  });
+
+  await context.route("https://restcountries.com/**", async (route) => {
+    const url = route.request().url();
+    const countryCode = url.split("/alpha/")[1]?.split("?")[0]?.toUpperCase();
+    const payloads = {
+      KE: {
+        name: { common: "Kenya" },
+        cca2: "KE",
+        cca3: "KEN",
+        flag: "🇰🇪",
+        languages: { eng: "English", swa: "Swahili" },
+        population: 53771300,
+        region: "Africa",
+        subregion: "Eastern Africa"
+      },
+      ZM: {
+        name: { common: "Zambia" },
+        cca2: "ZM",
+        cca3: "ZMB",
+        flag: "🇿🇲",
+        languages: { eng: "English" },
+        population: 20569737,
+        region: "Africa",
+        subregion: "Eastern Africa"
+      }
+    };
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(payloads[countryCode] || payloads.KE)
+    });
+  });
+
+  await context.route("https://api.worldbank.org/**", async (route) => {
+    const url = route.request().url();
+    let payload = worldBankSeries("SH.H2O.BASW.ZS", 67.4);
+    if (url.includes("SH.STA.BASS.ZS")) payload = worldBankSeries("SH.STA.BASS.ZS", 42.8);
+    if (url.includes("SP.POP.TOTL")) payload = worldBankSeries("SP.POP.TOTL", 53771300);
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(payload)
+    });
+  });
+
+  await context.route("https://api-bdc.net/**", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        city: "Nairobi",
+        principalSubdivision: "Nairobi County",
+        countryName: "Kenya",
+        countryCode: "KE"
+      })
+    });
+  });
+
   const page = await context.newPage();
 
   await page.goto(baseUrl, { waitUntil: "networkidle" });
@@ -73,40 +199,48 @@ try {
   const homeContent = (await page.content()).toLowerCase();
   assert.equal(homeContent.includes("demo mode"), false);
   assert.equal(homeContent.includes("prototype note"), false);
+  await expectText(page, ".helper-chip", "Nairobi, Kenya");
 
-  await page.fill("#regionSearchInput", "Turkana County, Kenya");
+  await page.fill("#regionSearchInput", "Nairobi, Kenya");
   await page.click("#regionSearchForm .primary-button");
-  await page.waitForURL(/\/region\//);
-  await expectText(page, "h1", "Turkana County, Kenya");
-  await expectText(page, ".status-badge span:last-child", "Advisory");
+  await page.waitForURL(/\/region\/\?q=/);
+  await expectText(page, "h1", "Nairobi, Nairobi County, Kenya");
+  await expectText(page, ".hero-status-card h2", "Quality index");
+  await expectText(page, "#liveContextMount", "67%");
 
   await page.click("#saveRegionButton");
   await expectText(page, "#saveRegionButton", "Saved");
 
   await page.click("#copySummaryButton");
   const clipboardText = await page.evaluate(() => navigator.clipboard.readText());
-  assert.match(clipboardText, /Turkana County, Kenya/);
-  assert.match(clipboardText, /Basic drinking water access/i);
+  assert.match(clipboardText, /Nairobi, Nairobi County, Kenya/);
+  assert.match(clipboardText, /Basic drinking water access: 67%/i);
 
   await page.click("[data-action-id='treat']");
-  await expectText(page, "#modalTitle", "Treat the cleanest supply first");
+  await expectText(page, "#modalTitle", "Treat the safest water first");
   await page.click("#closeModalButton");
   assert.equal(await page.locator("#actionModal").evaluate((node) => node.hidden), true);
 
-  await page.click("#useLocationButton");
-  await expectText(page, "h1", "Beira, Mozambique");
-
-  await page.goto(`${baseUrl}/assistant/?region=turkana-kenya`, { waitUntil: "networkidle" });
-  await page.click("[data-language='fr']");
-  await page.fill("#assistantInput", "What is the first step in an advisory?");
-  await page.click("#assistantSendButton");
+  await page.click(".helper-chip[href*='assistant']");
+  await page.waitForURL(/\/assistant\//);
+  await expectText(page, ".assistant-context", "Nairobi, Nairobi County, Kenya");
   await page.waitForFunction(() => {
-    const lastMessage = document.querySelector(".message.assistant:last-child .message-bubble");
-    const text = lastMessage?.textContent ?? "";
-    return Boolean(lastMessage) && !text.includes("Working through the safest possible answer for this region...");
+    const bubbles = Array.from(document.querySelectorAll(".message.assistant .message-bubble"));
+    const text = bubbles.at(-1)?.textContent ?? "";
+    return bubbles.length >= 2 && !text.includes("Working through the safest possible answer for this location...");
   });
+
+  await page.click("[data-language='es']");
+  await expectText(page, "#assistantLanguageFootnote", "Spanish");
+  const assistantCountBeforeFollowUp = await page.locator(".message.assistant").count();
+  await page.click("[data-question]");
+  await page.waitForFunction((beforeCount) => {
+    const assistants = Array.from(document.querySelectorAll(".message.assistant"));
+    const text = assistants.at(-1)?.querySelector(".message-bubble")?.textContent ?? "";
+    return assistants.length > beforeCount && !text.includes("Working through the safest possible answer for this location...");
+  }, assistantCountBeforeFollowUp);
   const assistantReply = await page.locator(".message.assistant:last-child .message-bubble").textContent();
-  assert.match(assistantReply ?? "", /Pour|trait|Turkana|eau|water/i);
+  assert.match(assistantReply ?? "", /Para|agua|Nairobi|segura/i);
 
   await page.fill("#assistantInput", "<img src=x onerror=window.__xssFlag=1>");
   await page.click("#assistantSendButton");
@@ -122,12 +256,26 @@ try {
   assert.equal(xssState.flag, 0);
   assert.equal(xssState.injectedImages, 0);
 
+  await page.goto(baseUrl, { waitUntil: "networkidle" });
+  await page.fill("#regionSearchInput", "Lusaka, Zambia");
+  await page.click("#regionSearchForm .primary-button");
+  await page.waitForURL(/\/region\/\?q=/);
+  await expectText(page, "h1", "Lusaka, Lusaka Province, Zambia");
+  await expectText(page, "#liveContextMount", "67%");
+
+  await page.goto(`${baseUrl}/region/?id=turkana-kenya`, { waitUntil: "networkidle" });
+  await expectText(page, "h1", "Turkana County, Kenya");
+  await expectText(page, "#liveContextMount", "67%");
+  await page.click("#useLocationButton");
+  await page.waitForURL(/\/region\/\?lat=/);
+  await expectText(page, "h1", "Nairobi, Nairobi County, Kenya");
+
   await page.goto(`${baseUrl}/resources/`, { waitUntil: "networkidle" });
   await page.click("[data-group='field']");
   await expectText(page, "#resourceCardGrid", "Use one household-ready summary");
 
   await page.goto(baseUrl, { waitUntil: "networkidle" });
-  await expectText(page, ".saved-chip", "Turkana County, Kenya");
+  await expectText(page, ".saved-chip", "Nairobi, Nairobi County, Kenya");
 
   await browser.close();
   console.log("Functional tests passed");

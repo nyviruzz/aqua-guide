@@ -1,9 +1,11 @@
-import { getRegionDetails, reverseLookup, resolveRegionQuery } from "./api.js";
+import { findRegionByQuery, getMostCriticalRegion } from "../data/regions.js";
+import { detectUserLocationReference, buildTrackedPayload, hydrateTrackedPayload, resolveDynamicPayloadFromCoordinates, resolveDynamicPayloadFromQuery } from "./location-service.js";
 import {
   bindActionModal,
   bindSearchForm,
   escapeHtml,
   iconSvg,
+  isFavorite,
   renderActions,
   renderHighlights,
   renderModalShell,
@@ -12,8 +14,9 @@ import {
   renderShell,
   renderSources,
   renderStatusBadge,
+  setActiveLocationContext,
   setDocumentTitle,
-  setLastRegionId,
+  setLastLocationReference,
   showToast,
   toggleFavorite
 } from "./common.js";
@@ -32,51 +35,107 @@ function renderMetricCard(label, value, footnote) {
   `;
 }
 
+function buildHeroMetricItems(payload) {
+  const { region, liveData } = payload;
+  if (!liveData) {
+    return [
+      { label: "Basic water access", value: "Loading...", footnote: "Pulling latest public data" },
+      { label: "Sanitation", value: "Loading...", footnote: "Pulling latest public data" },
+      { label: "Weather", value: "Loading...", footnote: "Pulling latest public data" },
+      { label: "Updated", value: escapeHtml(region?.metrics?.updated || "Live public data"), footnote: "Current page context" }
+    ];
+  }
+
+  return [
+    {
+      label: "Basic water access",
+      value: liveData.drinkingWater?.display || "Unavailable",
+      footnote: liveData.drinkingWater ? `${liveData.drinkingWater.year} · World Bank` : "Country-level source unavailable"
+    },
+    {
+      label: "Sanitation",
+      value: liveData.sanitation?.display || "Unavailable",
+      footnote: liveData.sanitation ? `${liveData.sanitation.year} · World Bank` : "Country-level source unavailable"
+    },
+    {
+      label: "Weather",
+      value: liveData.weather ? `${liveData.weather.temperatureC}°C · ${liveData.weather.label}` : "Unavailable",
+      footnote: liveData.weather ? `Wind ${liveData.weather.windKmh} km/h · Precip ${liveData.weather.precipitationMm} mm` : "Local weather unavailable"
+    },
+    {
+      label: "Updated",
+      value: "Live now",
+      footnote: payload.region.tracked ? "Curated guidance + live context" : "Search result built from public data"
+    }
+  ];
+}
+
 function buildLiveContext(payload) {
   const { liveData } = payload;
   return `
-    <section class="live-context-section">
+    <section id="liveContextMount" class="live-context-section">
       <div class="section-head">
         <div>
           <p class="section-label">Live context</p>
-          <h2>Country indicators and weather around this region</h2>
+          <h2>Country indicators and weather around this place</h2>
         </div>
-        <p class="section-meta">Aqua Guide pairs region-specific guidance with live public signals that help frame urgency.</p>
+        <p class="section-meta">Aqua Guide uses local weather and country-level public indicators to make the guidance faster to understand.</p>
       </div>
       <div class="live-metric-grid">
         ${renderMetricCard(
           "Basic drinking water access",
-          liveData.drinkingWater ? liveData.drinkingWater.display : "Unavailable",
-          liveData.drinkingWater ? `${liveData.drinkingWater.year} · World Bank` : "Live source unavailable"
+          liveData?.drinkingWater ? liveData.drinkingWater.display : "Loading...",
+          liveData?.drinkingWater ? `${liveData.drinkingWater.year} · World Bank` : "Waiting on latest source"
         )}
         ${renderMetricCard(
           "Basic sanitation access",
-          liveData.sanitation ? liveData.sanitation.display : "Unavailable",
-          liveData.sanitation ? `${liveData.sanitation.year} · World Bank` : "Live source unavailable"
+          liveData?.sanitation ? liveData.sanitation.display : "Loading...",
+          liveData?.sanitation ? `${liveData.sanitation.year} · World Bank` : "Waiting on latest source"
         )}
         ${renderMetricCard(
           "Population",
-          liveData.population ? liveData.population.display : "Unavailable",
-          liveData.population ? `${liveData.population.year} · World Bank` : "Live source unavailable"
+          liveData?.population ? liveData.population.display : "Loading...",
+          liveData?.population ? `${liveData.population.year} · Country context` : "Waiting on latest source"
         )}
         ${renderMetricCard(
           "Current weather",
-          liveData.weather ? `${liveData.weather.temperatureC}°C · ${liveData.weather.label}` : "Unavailable",
-          liveData.weather ? `Wind ${liveData.weather.windKmh} km/h · Precip ${liveData.weather.precipitationMm} mm` : "Live source unavailable"
+          liveData?.weather ? `${liveData.weather.temperatureC}°C · ${liveData.weather.label}` : "Loading...",
+          liveData?.weather ? `Wind ${liveData.weather.windKmh} km/h · Precip ${liveData.weather.precipitationMm} mm` : "Waiting on latest source"
         )}
       </div>
     </section>
   `;
 }
 
+function buildResolverCopy(payload) {
+  if (payload.match === "exact-region") {
+    return "Showing the featured region that best matches your search.";
+  }
+  if (payload.match === "dynamic-place" && payload.resolvedPlace) {
+    return `Showing live guidance for ${payload.resolvedPlace.name}, built from public country indicators and local weather.`;
+  }
+  if (payload.match === "detected-location" && payload.resolvedPlace) {
+    return `Showing live guidance for your detected location near ${payload.resolvedPlace.name}.`;
+  }
+  return "";
+}
+
+function buildAssistantHref(region, question) {
+  const url = new URL("/assistant/", window.location.origin);
+  if (region.tracked) {
+    url.searchParams.set("region", region.id);
+  } else {
+    url.searchParams.set("q", region.name);
+  }
+  url.searchParams.set("question", question);
+  return `${url.pathname}${url.search}`;
+}
+
 function buildRegionPage(payload) {
-  const { region, resolvedPlace, match } = payload;
-  const resolverCopy =
-    match === "closest-region" && resolvedPlace
-      ? `Showing guidance for the closest tracked region to ${resolvedPlace.name}.`
-      : match === "exact-region"
-        ? "Showing the tracked region that best matches your search."
-        : "";
+  const { region } = payload;
+  const resolverCopy = buildResolverCopy(payload);
+  const heroMetrics = buildHeroMetricItems(payload);
+  const saved = isFavorite(region.id);
 
   return `
     <div class="page-shell">
@@ -85,29 +144,35 @@ function buildRegionPage(payload) {
       <section class="hero hero-region">
         <div class="hero-grid region-hero-grid">
           <div class="hero-copy">
-            <p class="hero-kicker">${region.tag}</p>
-            <h1>${region.name}</h1>
-            <p>${region.heroDescription}</p>
+            <p class="hero-kicker">${escapeHtml(region.tag)}</p>
+            <h1>${escapeHtml(region.name)}</h1>
+            <p>${escapeHtml(region.heroDescription)}</p>
             <div class="hero-copy-cluster">
               ${renderStatusBadge(region)}
-              <span class="meta-pill">${region.utility}</span>
-              <span class="meta-pill">${region.recordLabel}</span>
+              <span class="meta-pill">${escapeHtml(region.utility)}</span>
+              <span class="meta-pill">${escapeHtml(region.recordLabel)}</span>
             </div>
           </div>
           <aside class="hero-status-card solid">
             <div class="hero-status-top">
-              <p class="eyebrow">Region status</p>
+              <p class="eyebrow">Place status</p>
               ${renderStatusBadge(region)}
             </div>
-            <h2>Quality index ${region.qualityIndex}/100</h2>
-            <div class="hero-detail-grid">
-              <div><span>Lead</span><strong>${region.metrics.lead} ppb</strong></div>
-              <div><span>Chlorine</span><strong>${region.metrics.chlorine} ppm</strong></div>
-              <div><span>pH</span><strong>${region.metrics.ph}</strong></div>
-              <div><span>Updated</span><strong>${region.metrics.updated}</strong></div>
+            <h2>Quality index <span id="heroQualityIndex">${escapeHtml(region.qualityIndex)}</span>/100</h2>
+            <div id="heroMetricGrid" class="hero-detail-grid">
+              ${heroMetrics
+                .map(
+                  (item) => `
+                    <div>
+                      <span>${escapeHtml(item.label)}</span>
+                      <strong>${escapeHtml(item.value)}</strong>
+                    </div>
+                  `
+                )
+                .join("")}
             </div>
             <div class="hero-card-actions">
-              <button id="saveRegionButton" class="secondary-button" type="button">Save region</button>
+              <button id="saveRegionButton" class="secondary-button" type="button">${saved ? "Saved" : "Save place"}</button>
               <button id="copySummaryButton" class="ghost-button" type="button">Copy summary</button>
             </div>
           </aside>
@@ -117,7 +182,7 @@ function buildRegionPage(payload) {
       <section class="search-section search-section-inline">
         <form id="regionSearchForm" class="search-bar">
           <div class="search-icon">${iconSvg.search}</div>
-          <input id="regionSearchInput" type="text" placeholder="Search another region or place" autocomplete="off" />
+          <input id="regionSearchInput" type="text" placeholder="Search another city, country, or featured region" autocomplete="off" />
           <button class="primary-button" type="submit">Open guidance</button>
           <button id="useLocationButton" class="secondary-button" type="button">Use my location</button>
         </form>
@@ -132,14 +197,14 @@ function buildRegionPage(payload) {
         <div class="section-head">
           <div>
             <p class="section-label">Need help understanding this?</p>
-            <h2>Open Aqua Assistant with this region already loaded</h2>
+            <h2>Open Aqua Assistant with this place already loaded</h2>
           </div>
         </div>
         <div class="helper-row">
           ${region.aiSuggestions
             .map(
               (question) => `
-                <a class="helper-chip" href="../assistant/?region=${encodeURIComponent(region.id)}&question=${encodeURIComponent(question)}">${question}</a>
+                <a class="helper-chip" href="${buildAssistantHref(region, question)}">${escapeHtml(question)}</a>
               `
             )
             .join("")}
@@ -155,19 +220,110 @@ function buildCopySummary(payload) {
   return [
     `${region.name} · ${region.statusLabel}`,
     region.quickSummary,
-    liveData.drinkingWater ? `Basic drinking water access: ${liveData.drinkingWater.display} (${liveData.drinkingWater.year})` : null,
-    liveData.sanitation ? `Basic sanitation access: ${liveData.sanitation.display} (${liveData.sanitation.year})` : null
+    liveData?.drinkingWater ? `Basic drinking water access: ${liveData.drinkingWater.display} (${liveData.drinkingWater.year}, World Bank)` : null,
+    liveData?.sanitation ? `Basic sanitation access: ${liveData.sanitation.display} (${liveData.sanitation.year}, World Bank)` : null,
+    liveData?.weather ? `Current weather: ${liveData.weather.temperatureC}°C, ${liveData.weather.label}, wind ${liveData.weather.windKmh} km/h` : null
   ]
     .filter(Boolean)
     .join("\n");
 }
 
-async function loadRegionPayload() {
+function buildFavoriteEntry(payload) {
+  const href = `/region/${window.location.search || `?id=${encodeURIComponent(payload.region.id)}`}`;
+  return {
+    id: payload.region.id,
+    name: payload.region.name,
+    flag: payload.region.flag || "🌍",
+    status: payload.region.status,
+    statusLabel: payload.region.statusLabel,
+    href
+  };
+}
+
+function syncPayloadPersistence(payload) {
+  setActiveLocationContext(payload.region);
+  if (payload.region.tracked) {
+    setLastLocationReference({ type: "id", value: payload.region.id });
+    return;
+  }
+
+  const query = getParam("q");
+  setLastLocationReference({
+    type: "query",
+    value: query || payload.region.name
+  });
+}
+
+function refreshLiveUi(payload) {
+  const heroMetricGrid = document.getElementById("heroMetricGrid");
+  if (heroMetricGrid) {
+    heroMetricGrid.innerHTML = buildHeroMetricItems(payload)
+      .map(
+        (item) => `
+          <div>
+            <span>${escapeHtml(item.label)}</span>
+            <strong>${escapeHtml(item.value)}</strong>
+          </div>
+        `
+      )
+      .join("");
+  }
+
+  const liveContext = document.getElementById("liveContextMount");
+  if (liveContext) {
+    liveContext.outerHTML = buildLiveContext(payload);
+  }
+}
+
+async function loadInitialPayload() {
   const id = getParam("id");
   const query = getParam("q");
-  if (id) return getRegionDetails(id);
-  if (query) return resolveRegionQuery(query);
-  return getRegionDetails("turkana-kenya");
+  const lat = getParam("lat");
+  const lng = getParam("lng");
+
+  if (id) {
+    return {
+      payload: buildTrackedPayload(id),
+      hydrate: true
+    };
+  }
+
+  if (query) {
+    const trackedRegion = findRegionByQuery(query);
+    if (trackedRegion) {
+      return {
+        payload: buildTrackedPayload(trackedRegion, {
+          match: "exact-region",
+          resolvedPlace: { name: trackedRegion.name }
+        }),
+        hydrate: true
+      };
+    }
+
+    return {
+      payload: await resolveDynamicPayloadFromQuery(query),
+      hydrate: false
+    };
+  }
+
+  if (lat && lng) {
+    return {
+      payload: await resolveDynamicPayloadFromCoordinates({
+        lat,
+        lng,
+        name: getParam("name"),
+        admin1: getParam("admin1"),
+        country: getParam("country"),
+        iso2: getParam("iso2")
+      }),
+      hydrate: false
+    };
+  }
+
+  return {
+    payload: buildTrackedPayload(getMostCriticalRegion().id),
+    hydrate: true
+  };
 }
 
 async function init() {
@@ -185,32 +341,37 @@ async function init() {
   `;
 
   try {
-    const payload = await loadRegionPayload();
+    const { payload, hydrate } = await loadInitialPayload();
     if (!payload?.region) {
       main.innerHTML = `<div class="page-shell">${renderNotFoundState("../")}</div>`;
       return;
     }
 
-    setLastRegionId(payload.region.id);
-    setDocumentTitle(payload.region.name);
-    main.innerHTML = buildRegionPage(payload);
+    let currentPayload = payload;
+    syncPayloadPersistence(currentPayload);
+    setDocumentTitle(currentPayload.region.name);
+    main.innerHTML = buildRegionPage(currentPayload);
 
     bindSearchForm({
       formSelector: "#regionSearchForm",
       inputSelector: "#regionSearchInput",
       targetBasePath: "../"
     });
-    bindActionModal(payload.region);
+    bindActionModal(currentPayload.region);
 
     document.getElementById("saveRegionButton")?.addEventListener("click", () => {
-      const saved = toggleFavorite(payload.region.id);
-      document.getElementById("saveRegionButton").textContent = saved ? "Saved" : "Save region";
-      showToast(saved ? "Region saved" : "Region removed");
+      const saved = toggleFavorite(buildFavoriteEntry(currentPayload));
+      document.getElementById("saveRegionButton").textContent = saved ? "Saved" : "Save place";
+      showToast(saved ? "Place saved" : "Place removed");
     });
 
     document.getElementById("copySummaryButton")?.addEventListener("click", async () => {
-      await navigator.clipboard.writeText(buildCopySummary(payload));
-      showToast("Summary copied");
+      try {
+        await navigator.clipboard.writeText(buildCopySummary(currentPayload));
+        showToast("Summary copied");
+      } catch {
+        showToast("Unable to copy summary right now");
+      }
     });
 
     document.getElementById("useLocationButton")?.addEventListener("click", () => {
@@ -222,8 +383,15 @@ async function init() {
       navigator.geolocation.getCurrentPosition(
         async (position) => {
           try {
-            const result = await reverseLookup(position.coords.latitude, position.coords.longitude);
-            window.location.href = `../region/?id=${encodeURIComponent(result.region.id)}`;
+            const detected = await detectUserLocationReference(position.coords);
+            const url = new URL("/region/", window.location.origin);
+            url.searchParams.set("lat", String(detected.lat));
+            url.searchParams.set("lng", String(detected.lng));
+            if (detected.name) url.searchParams.set("name", detected.name);
+            if (detected.admin1) url.searchParams.set("admin1", detected.admin1);
+            if (detected.country) url.searchParams.set("country", detected.country);
+            if (detected.iso2) url.searchParams.set("iso2", detected.iso2);
+            window.location.href = url.toString();
           } catch (error) {
             showToast(error instanceof Error ? error.message : "Unable to match your location");
           }
@@ -232,13 +400,25 @@ async function init() {
         { enableHighAccuracy: true, timeout: 10000 }
       );
     });
+
+    if (hydrate) {
+      hydrateTrackedPayload(currentPayload)
+        .then((nextPayload) => {
+          currentPayload = nextPayload;
+          syncPayloadPersistence(currentPayload);
+          refreshLiveUi(currentPayload);
+        })
+        .catch(() => {
+          showToast("Live context is temporarily unavailable");
+        });
+    }
   } catch (error) {
     main.innerHTML = `
       <div class="page-shell">
         <section class="empty-state">
           <p class="section-label">Unavailable</p>
-          <h1>We could not load this region.</h1>
-          <p>${error instanceof Error ? error.message : "Unknown error"}</p>
+          <h1>We could not load this place.</h1>
+          <p>${escapeHtml(error instanceof Error ? error.message : "Unknown error")}</p>
         </section>
       </div>
     `;

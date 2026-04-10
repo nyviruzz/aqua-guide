@@ -473,6 +473,30 @@ export const regions = [
   }
 ];
 
+export const spotlightSearches = [
+  "Nairobi, Kenya",
+  "Dhaka, Bangladesh",
+  "Maputo, Mozambique",
+  "Port-au-Prince, Haiti",
+  "Lagos, Nigeria",
+  "Khulna, Bangladesh",
+  "Mombasa, Kenya",
+  "Beira, Mozambique"
+];
+
+export const featuredSearches = [
+  { label: "Nairobi, Kenya", query: "Nairobi, Kenya" },
+  { label: "Dhaka, Bangladesh", query: "Dhaka, Bangladesh" },
+  { label: "Lagos, Nigeria", query: "Lagos, Nigeria" },
+  { label: "Karachi, Pakistan", query: "Karachi, Pakistan" },
+  { label: "Addis Ababa, Ethiopia", query: "Addis Ababa, Ethiopia" },
+  { label: "Kampala, Uganda", query: "Kampala, Uganda" },
+  { label: "Manila, Philippines", query: "Manila, Philippines" },
+  { label: "Lima, Peru", query: "Lima, Peru" },
+  { label: "Dakar, Senegal", query: "Dakar, Senegal" },
+  { label: "Port-au-Prince, Haiti", query: "Port-au-Prince, Haiti" }
+];
+
 const statusRank = {
   advisory: 3,
   caution: 2,
@@ -480,7 +504,7 @@ const statusRank = {
 };
 
 export function getRegionById(id) {
-  return regions.find((region) => region.id === id) ?? regions[0];
+  return regions.find((region) => region.id === id) ?? null;
 }
 
 export function findRegionByQuery(query) {
